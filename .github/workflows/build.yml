@@ -1,4 +1,4 @@
-name: Swift
+name: Build
 
 on: [push]
 
@@ -11,12 +11,24 @@ jobs:
         swift: ["5.10"]
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+      
       - uses: swift-actions/setup-swift@v2
         with:
           swift-version: ${{ matrix.swift }}
-      - uses: actions/checkout@v4
-      - name: Build
-        run: swift build
+      
+      - name: Build (Release)
+        run: swift build -c release
+      
+      - name: Verify build
+        run: |
+          if [ ! -f .build/release/Caliper ]; then
+            echo "Error: Caliper binary not found"
+            exit 1
+          fi
+      
       - name: Run help command
         run: .build/release/Caliper --help
-
+      
+      - name: Show version
+        run: .build/release/Caliper --version
