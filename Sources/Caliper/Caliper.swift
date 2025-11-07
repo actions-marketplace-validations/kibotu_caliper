@@ -1,0 +1,745 @@
+import Foundation
+import ArgumentParser
+import Yams
+
+@main
+struct Caliper: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Measure binary and bundle sizes for Swift packages in an IPA",
+        version: "1.0.0"
+    )
+    
+    @Option(name: .long, help: "Path to the IPA file")
+    var ipaPath: String
+    
+    @Option(name: .long, help: "Path to the unzipped IPA directory")
+    var unzippedPath: String
+    
+    @Option(name: .long, help: "Optional path to LinkMap file for accurate binary sizes")
+    var linkMapPath: String?
+    
+    @Option(name: .long, help: "JSON file containing module mappings (framework name -> module name)")
+    var moduleMappingPath: String?
+    
+    @Option(name: .long, help: "YAML file containing module ownership configuration")
+    var ownershipFile: String?
+    
+    @Option(name: .long, help: "Filter output to show only modules owned by specific owner")
+    var filterOwner: String?
+    
+    @Flag(name: .long, help: "Pretty print JSON output")
+    var prettyPrint: Bool = false
+    
+    @Flag(name: .long, help: "Group output by owner")
+    var groupByOwner: Bool = false
+    
+    func run() throws {
+        // Load ownership file if provided
+        var ownershipEntries: [OwnershipEntry] = []
+        if let ownershipPath = ownershipFile {
+            ownershipEntries = try loadOwnershipFile(from: ownershipPath)
+        }
+        
+        // Start with empty module mappings - no defaults!
+        var moduleMapping: [String: String] = [:]
+        
+        // Load custom mappings if provided
+        if let mappingPath = moduleMappingPath {
+            if let customMapping = try? loadModuleMapping(from: mappingPath) {
+                moduleMapping.merge(customMapping) { _, new in new }
+            }
+        }
+        
+        // If ownership file is loaded, use it for module mappings too
+        if !ownershipEntries.isEmpty {
+            for entry in ownershipEntries {
+                if let moduleName = entry.module {
+                    // Extract framework name from identifier
+                    let frameworkName = entry.identifier.replacingOccurrences(of: "*", with: "")
+                    if !frameworkName.isEmpty {
+                        moduleMapping[frameworkName] = moduleName
+                    }
+                }
+            }
+        }
+        
+        // Generate report from IPA
+        let report = try generateReport(ipaPath: ipaPath)
+        
+        // Build app size report
+        var appSizeReport = try buildAppSizeReport(
+            report: report,
+            unzippedPath: unzippedPath,
+            moduleMapping: moduleMapping
+        )
+        
+        // Parse LinkMap if provided
+        if let linkMapPath = linkMapPath {
+            fputs("\nParsing LinkMap file...\n", stderr)
+            do {
+                let moduleSizes = try parseLinkMap(linkMapPath: linkMapPath)
+                fputs("Found \(moduleSizes.count) modules in LinkMap\n", stderr)
+                updateBinarySizes(&appSizeReport, moduleMapping: moduleMapping, moduleSizes: moduleSizes)
+            } catch {
+                fputs("Error parsing LinkMap: \(error)\n", stderr)
+                throw error
+            }
+        }
+        
+        // Calculate totals
+        let totalSize = try calculateTotalSize(ipaPath: ipaPath, unzippedPath: unzippedPath)
+        
+        // Assign owners to modules
+        if !ownershipEntries.isEmpty {
+            for (moduleName, moduleSize) in appSizeReport {
+                if let owner = findOwner(for: moduleName, in: ownershipEntries) {
+                    moduleSize.owner = owner
+                }
+            }
+        }
+        
+        // Filter by owner if specified
+        var filteredModules = appSizeReport
+        if let owner = filterOwner {
+            filteredModules = appSizeReport.filter { $0.value.owner?.lowercased() == owner.lowercased() }
+        }
+        
+        // Group by owner if requested
+        var modulesByOwner: [String: [String: ModuleSize]]? = nil
+        if groupByOwner && !ownershipEntries.isEmpty {
+            var grouped: [String: [String: ModuleSize]] = [:]
+            for (moduleName, moduleSize) in filteredModules {
+                let owner = moduleSize.owner ?? "unknown"
+                if grouped[owner] == nil {
+                    grouped[owner] = [:]
+                }
+                grouped[owner]?[moduleName] = moduleSize
+            }
+            modulesByOwner = grouped
+        }
+        
+        // Output JSON
+        fputs("\nGenerating JSON output...\n", stderr)
+        let output = CaliperOutput(
+            modules: filteredModules,
+            totalPackageSize: totalSize.packageSize,
+            totalInstallSize: totalSize.installSize,
+            modulesByOwner: modulesByOwner
+        )
+        
+        let encoder = JSONEncoder()
+        if prettyPrint {
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        }
+        
+        do {
+            let jsonData = try encoder.encode(output)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                print(jsonString)
+            }
+        } catch {
+            fputs("Error encoding JSON: \(error)\n", stderr)
+            throw error
+        }
+    }
+    
+    private func loadOwnershipFile(from path: String) throws -> [OwnershipEntry] {
+        let yamlString = try String(contentsOfFile: path, encoding: .utf8)
+        let entries = try YAMLDecoder().decode([OwnershipEntry].self, from: yamlString)
+        return entries
+    }
+    
+    private func findOwner(for moduleName: String, in entries: [OwnershipEntry]) -> String? {
+        for entry in entries {
+            if entry.matches(moduleName) {
+                return entry.owner
+            }
+        }
+        return nil
+    }
+    
+    private func loadModuleMapping(from path: String) throws -> [String: String] {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        return try JSONDecoder().decode([String: String].self, from: data)
+    }
+    
+    private func generateReport(ipaPath: String) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-v", ipaPath]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else {
+            throw CaliperError.unzipFailed
+        }
+        
+        // Parse unzip -v output to get: uncompressed_size compressed_size file_path
+        let lines = output.components(separatedBy: .newlines)
+        var report: [String] = []
+        
+        // Skip header (first 3 lines) and footer (last 2 lines)
+        let dataLines = lines.dropFirst(3).dropLast(2)
+        
+        for line in dataLines {
+            let components = line.split(separator: " ", omittingEmptySubsequences: true)
+            if components.count >= 8 {
+                let uncompressedSize = components[0]
+                let compressedSize = components[2]
+                let filePath = components[7...].joined(separator: " ")
+                report.append("\(uncompressedSize) \(compressedSize) \(filePath)")
+            }
+        }
+        
+        return report.joined(separator: "\n")
+    }
+    
+    private func buildAppSizeReport(
+        report: String,
+        unzippedPath: String,
+        moduleMapping: [String: String]
+    ) throws -> [String: ModuleSize] {
+        var result: [String: ModuleSize] = [:]
+        
+        let lines = report.components(separatedBy: .newlines)
+        let totalLines = lines.count
+        var processedLines = 0
+        var lastProgressUpdate = 0
+        
+        fputs("Analyzing \(totalLines) files from IPA...\n", stderr)
+        
+        for line in lines {
+            processedLines += 1
+            
+            // Print progress every 10%
+            let progress = (processedLines * 100) / totalLines
+            if progress >= lastProgressUpdate + 10 {
+                lastProgressUpdate = progress
+                fputs("  Progress: \(progress)% (\(processedLines)/\(totalLines) files)\n", stderr)
+            }
+            let parts = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            guard parts.count == 3 else { continue }
+            
+            guard let uncompressedSize = Int64(parts[0]),
+                  let compressedSize = Int64(parts[1]) else {
+                continue
+            }
+            
+            let filePath = String(parts[2])
+            
+            // Extract module name from path
+            // Paths can be:
+            // - "Payload/App.app/Frameworks/MyFramework.framework/..." (dynamic frameworks)
+            // - "Payload/App.app/ProfisPartnerCore_ProfisPartnerCore.bundle/..." (resource bundles for static modules)
+            var containerName: String? = nil
+            var moduleName: String
+            
+            // Try to extract framework name
+            if let frameworkRange = filePath.range(of: ".framework") {
+                let beforeFramework = filePath[..<frameworkRange.lowerBound]
+                if let lastSlash = beforeFramework.lastIndex(of: "/") {
+                    containerName = String(beforeFramework[beforeFramework.index(after: lastSlash)...])
+                }
+            }
+            // Try to extract bundle name (for statically linked modules)
+            else if let bundleRange = filePath.range(of: ".bundle") {
+                let beforeBundle = filePath[..<bundleRange.lowerBound]
+                if let lastSlash = beforeBundle.lastIndex(of: "/") {
+                    let fullBundleName = String(beforeBundle[beforeBundle.index(after: lastSlash)...])
+                    // Bundle names are like "ProfisPartnerCore_ProfisPartnerCore", extract the first part
+                    if let underscoreIndex = fullBundleName.firstIndex(of: "_") {
+                        containerName = String(fullBundleName[..<underscoreIndex])
+                    } else {
+                        containerName = fullBundleName
+                    }
+                }
+            }
+            
+            // If we have a container name (framework or bundle), use it
+            if let container = containerName {
+                // Check if there's a mapping for it, otherwise use container name directly
+                if let mappedName = moduleMapping[container] {
+                    moduleName = mappedName
+                } else {
+                    // No mapping - use container name directly
+                    moduleName = container
+                }
+            } else {
+                // Not a framework or bundle file, skip it
+                continue
+            }
+            
+            // Initialize module if not exists
+            if result[moduleName] == nil {
+                result[moduleName] = ModuleSize(name: moduleName)
+            }
+            
+            guard let moduleSize = result[moduleName] else { continue }
+            
+            // Get file extension
+            let components = filePath.split(separator: ".")
+            guard let ext = components.last else { continue }
+            let fileExtension = String(ext).lowercased()
+            
+            // Categorize by file type
+            switch fileExtension {
+            case "pdf", "gif", "jpg", "jpeg", "png":
+                // Images
+                moduleSize.imageSize += compressedSize
+                moduleSize.imageFileSize += uncompressedSize
+                moduleSize.addResource(type: fileExtension, size: compressedSize)
+                moduleSize.addToTop(file: filePath, size: compressedSize)
+                
+            case "nib":
+                // NIB files
+                let resourceType = filePath.contains(".storyboardc") ? "storyboardc" : "nib"
+                moduleSize.addResource(type: resourceType, size: compressedSize)
+                moduleSize.addToTop(file: filePath, size: compressedSize)
+                
+            case "plist", "mov", "strings", "json":
+                // Resources
+                moduleSize.addResource(type: fileExtension, size: compressedSize)
+                moduleSize.addToTop(file: filePath, size: compressedSize)
+                
+            case "car":
+                // Asset catalogs - need to parse with assetutil
+                try? parseAssetCatalog(
+                    filePath: "\(unzippedPath)/\(filePath)",
+                    moduleSize: moduleSize
+                )
+                
+            default:
+                // Check if it's the main binary (framework or bundle executable)
+                if let container = containerName {
+                    // For frameworks: file ends with framework name (e.g., "Lottie.framework/Lottie")
+                    // For bundles: we don't expect binary files, but add to top anyway
+                    if filePath.hasSuffix(container) {
+                        moduleSize.binarySize = compressedSize
+                    }
+                }
+                moduleSize.addToTop(file: filePath, size: compressedSize)
+            }
+            
+            // Update proguard (uncompressed total size)
+            moduleSize.proguard += uncompressedSize
+        }
+        
+        // Finalize top files for each module (sort and keep top 30)
+        for (_, moduleSize) in result {
+            moduleSize.finalizeTop()
+        }
+        
+        return result
+    }
+    
+    private func parseAssetCatalog(filePath: String, moduleSize: ModuleSize) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = ["--sdk", "iphoneos", "assetutil", "--info", filePath]
+        
+        let pipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = errorPipe
+        
+        // Print progress with full path
+        fputs("  Parsing: \(filePath)\n", stderr)
+        
+        // Accumulate output data in background to prevent buffer blocking
+        var outputData = Data()
+        var errorData = Data()
+        
+        // Read stdout asynchronously to prevent blocking
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let availableData = handle.availableData
+            if !availableData.isEmpty {
+                outputData.append(availableData)
+            }
+        }
+        
+        // Read stderr asynchronously to prevent blocking
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let availableData = handle.availableData
+            if !availableData.isEmpty {
+                errorData.append(availableData)
+            }
+        }
+        
+        do {
+            try process.run()
+        } catch {
+            fputs("  ⚠️  Warning: Failed to start assetutil\n", stderr)
+            fputs("     File: \(filePath)\n", stderr)
+            fputs("     Error: \(error)\n", stderr)
+            return
+        }
+        
+        // Wait for process to complete (with timeout)
+        let timeout: TimeInterval = 10.0
+        let startTime = Date()
+        
+        while process.isRunning && Date().timeIntervalSince(startTime) < timeout {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        
+        // Clean up handlers
+        pipe.fileHandleForReading.readabilityHandler = nil
+        errorPipe.fileHandleForReading.readabilityHandler = nil
+        
+        // If still running after timeout, terminate
+        if process.isRunning {
+            process.terminate()
+            Thread.sleep(forTimeInterval: 0.2)
+            fputs("  ⚠️  Warning: assetutil timed out after \(Int(timeout))s\n", stderr)
+            fputs("     File: \(filePath)\n", stderr)
+            return
+        }
+        
+        // Check exit code
+        if process.terminationStatus != 0 {
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            fputs("  ⚠️  Warning: assetutil failed (exit code: \(process.terminationStatus))\n", stderr)
+            fputs("     File: \(filePath)\n", stderr)
+            if !errorOutput.isEmpty {
+                fputs("     Error output: \(errorOutput)\n", stderr)
+            }
+            return
+        }
+        
+        guard let output = String(data: outputData, encoding: .utf8) else { return }
+        
+        // Drop first line (header) and parse JSON array
+        let lines = output.components(separatedBy: .newlines)
+        guard lines.count > 1 else { return }
+        
+        let jsonString = "[" + lines.dropFirst().joined(separator: " ")
+        guard let jsonData = jsonString.data(using: .utf8) else { return }
+        
+        do {
+            let assets = try JSONDecoder().decode([AssetInfo].self, from: jsonData)
+            
+            for asset in assets {
+                guard let name = asset.RenditionName,
+                      let sizeOnDisk = asset.SizeOnDisk else {
+                    continue
+                }
+                
+                let size = Int64(sizeOnDisk)
+                let components = name.split(separator: ".")
+                guard let ext = components.last else { continue }
+                let fileExtension = String(ext).lowercased()
+                
+                switch fileExtension {
+                case "svg", "png", "pdf":
+                    moduleSize.imageSize += size
+                    moduleSize.imageFileSize += size
+                    moduleSize.addResource(type: fileExtension, size: size)
+                    moduleSize.addToTop(file: name, size: size)
+                    
+                case "0-gamut0", "1-gamut0":
+                    moduleSize.addResource(type: fileExtension, size: size)
+                    moduleSize.addToTop(file: name, size: size)
+                    
+                default:
+                    break
+                }
+            }
+        } catch {
+            // Silently fail if asset parsing fails
+            fputs("  ⚠️  Warning: Failed to parse asset data\n", stderr)
+            fputs("     File: \(filePath)\n", stderr)
+        }
+    }
+    
+    private func parseLinkMap(linkMapPath: String) throws -> [String: Int64] {
+        var moduleSizes: [String: Int64] = ["other": 0]
+        var fileIndices: [String: String] = [:]
+        
+        // Try reading with UTF-8, fallback to ASCII
+        var content: String
+        do {
+            content = try String(contentsOfFile: linkMapPath, encoding: .utf8)
+        } catch {
+            fputs("  Warning: UTF-8 reading failed, trying ASCII...\n", stderr)
+            do {
+                content = try String(contentsOfFile: linkMapPath, encoding: .ascii)
+            } catch {
+                fputs("  Warning: ASCII reading failed, trying data approach...\n", stderr)
+                // Last resort: read as data and convert, replacing invalid characters
+                let data = try Data(contentsOf: URL(fileURLWithPath: linkMapPath))
+                guard let str = String(data: data, encoding: .utf8) ??
+                                String(data: data, encoding: .ascii) ??
+                                String(data: data, encoding: .isoLatin1) else {
+                    throw NSError(domain: "CaliperError", code: 1, 
+                                 userInfo: [NSLocalizedDescriptionKey: "Cannot read LinkMap file with any known encoding"])
+                }
+                content = str
+            }
+        }
+        
+        let lines = content.components(separatedBy: .newlines)
+        
+        var currentSection = ""
+        
+        for line in lines {
+            if line.hasPrefix("#") {
+                if line.lowercased().contains("files") {
+                    currentSection = "files"
+                } else if line.lowercased().contains("symbols") {
+                    currentSection = "symbols"
+                }
+                continue
+            }
+            
+            if currentSection == "files" {
+                parseFileLine(line: line, fileIndices: &fileIndices)
+            } else if currentSection == "symbols" {
+                parseSymbolLine(line: line, fileIndices: fileIndices, moduleSizes: &moduleSizes)
+            }
+        }
+        
+        return moduleSizes
+    }
+    
+    private func parseFileLine(line: String, fileIndices: inout [String: String]) {
+        let components = line.components(separatedBy: "]")
+        guard components.count > 1 else { return }
+        
+        let indexPart = components[0].replacingOccurrences(of: "[", with: "").trimmingCharacters(in: .whitespaces)
+        let pathPart = components[1].trimmingCharacters(in: .whitespaces)
+        
+        // Extract module name from path
+        // Following the Groovy script approach: look at the LAST path component (filename)
+        // and match against known module prefixes
+        
+        let pathComponents = pathPart.components(separatedBy: "/")
+        guard let fileName = pathComponents.last?.trimmingCharacters(in: .whitespaces) else {
+            return
+        }
+        
+        // Remove file extension to get the base name
+        let baseName = fileName.replacingOccurrences(of: ".o", with: "")
+            .replacingOccurrences(of: ".a", with: "")
+        
+        // Known module prefixes to check (matching Groovy script's modules list)
+        let modulePrefixes = [
+            "ProfisPartnerMover",
+            "ProfisPartnerCraftsmen",
+            "ProfisPartnerEvents",
+            "ProfisPartnerPortal",
+            "C24ProfisNativeMessenger",
+            "ProfisPartnerCore"  // Check ProfisPartnerCore last as it's the catch-all
+        ]
+        
+        // Find matching module by prefix
+        var moduleName: String? = nil
+        for prefix in modulePrefixes {
+            if baseName.lowercased().hasPrefix(prefix.lowercased()) {
+                moduleName = prefix
+                break
+            }
+        }
+        
+        // If no prefix match, treat the filename itself as a module (for external dependencies)
+        if moduleName == nil {
+            // Check if it's in a .build directory to use that as module name
+            for component in pathComponents {
+                if component.hasSuffix(".build") {
+                    moduleName = component.replacingOccurrences(of: ".build", with: "")
+                    break
+                }
+            }
+            
+            // If still no match, use the base filename as module name
+            if moduleName == nil {
+                moduleName = baseName
+            }
+        }
+        
+        if let name = moduleName {
+            fileIndices[indexPart] = name
+        }
+    }
+    
+    private func parseSymbolLine(line: String, fileIndices: [String: String], moduleSizes: inout [String: Int64]) {
+        let components = line.components(separatedBy: "\t")
+        guard components.count > 2 else { return }
+        
+        // Parse hex size
+        let sizeComponents = components[1].components(separatedBy: "x")
+        guard sizeComponents.count > 1,
+              let size = Int64(sizeComponents[1], radix: 16) else {
+            return
+        }
+        
+        // Parse file index
+        let indexComponents = components[2].components(separatedBy: "]")
+        let indexPart = indexComponents[0].replacingOccurrences(of: "[", with: "").trimmingCharacters(in: .whitespaces)
+        
+        if let moduleName = fileIndices[indexPart] {
+            moduleSizes[moduleName, default: 0] += size
+        } else {
+            moduleSizes["other", default: 0] += size
+        }
+    }
+    
+    private func updateBinarySizes(
+        _ appSizeReport: inout [String: ModuleSize],
+        moduleMapping: [String: String],
+        moduleSizes: [String: Int64]
+    ) {
+        // First pass: Update binary sizes for ALL modules found in LinkMap
+        for (moduleName, size) in moduleSizes {
+            // Skip "other" synthetic module
+            if moduleName == "other" {
+                continue
+            }
+            
+            if let existingModule = appSizeReport[moduleName] {
+                // Update existing module (created from bundle/framework processing)
+                existingModule.binarySize = size
+                existingModule.proguard += size
+            } else {
+                // Create new module from LinkMap (for modules without bundles/frameworks)
+                let newModule = ModuleSize(name: moduleName)
+                newModule.binarySize = size
+                newModule.proguard = size
+                appSizeReport[moduleName] = newModule
+            }
+        }
+        
+        // Second pass: Handle any module mappings (if provided)
+        for (originalName, mappedName) in moduleMapping {
+            if let size = moduleSizes[originalName] {
+                if let moduleSize = appSizeReport[mappedName] {
+                    // Update the mapped module with the original's size
+                    moduleSize.binarySize = size
+                    moduleSize.proguard += size
+                }
+            }
+        }
+    }
+    
+    private func calculateTotalSize(ipaPath: String, unzippedPath: String) throws -> (packageSize: Int64, installSize: Int64) {
+        // Package size (compressed IPA)
+        let ipaURL = URL(fileURLWithPath: ipaPath)
+        let attributes = try FileManager.default.attributesOfItem(atPath: ipaURL.path)
+        let packageSize = attributes[.size] as? Int64 ?? 0
+        
+        // Install size (uncompressed)
+        let installSize = try directorySize(at: unzippedPath)
+        
+        return (packageSize, installSize)
+    }
+    
+    private func directorySize(at path: String) throws -> Int64 {
+        let fileManager = FileManager.default
+        var totalSize: Int64 = 0
+        
+        if let enumerator = fileManager.enumerator(atPath: path) {
+            for case let file as String in enumerator {
+                let filePath = (path as NSString).appendingPathComponent(file)
+                let attributes = try fileManager.attributesOfItem(atPath: filePath)
+                totalSize += attributes[.size] as? Int64 ?? 0
+            }
+        }
+        
+        return totalSize
+    }
+}
+
+// MARK: - Models
+
+class ModuleSize: Codable {
+    var name: String
+    var owner: String?
+    var binarySize: Int64 = 0
+    var imageSize: Int64 = 0
+    var imageFileSize: Int64 = 0
+    var proguard: Int64 = 0
+    var resources: [String: Resource] = [:]
+    var top: [String: Int64] = [:]
+    
+    init(name: String) {
+        self.name = name
+        self.owner = nil
+    }
+    
+    func addResource(type: String, size: Int64) {
+        if resources[type] == nil {
+            resources[type] = Resource()
+        }
+        resources[type]?.size += size
+        resources[type]?.count += 1
+    }
+    
+    func addToTop(file: String, size: Int64) {
+        top[file] = size
+    }
+    
+    func finalizeTop() {
+        // Sort by size (descending) and keep only top 30
+        // Build a new ordered dictionary with sorted entries
+        let sorted = top.sorted { $0.value > $1.value }.prefix(30)
+        top = [:]
+        for (key, value) in sorted {
+            top[key] = value
+        }
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case name, owner, binarySize, imageSize, imageFileSize, proguard, resources, top
+    }
+}
+
+struct Resource: Codable {
+    var size: Int64 = 0
+    var count: Int = 0
+}
+
+struct AssetInfo: Codable {
+    let RenditionName: String?
+    let SizeOnDisk: Int?
+}
+
+struct CaliperOutput: Codable {
+    let modules: [String: ModuleSize]
+    let totalPackageSize: Int64
+    let totalInstallSize: Int64
+    let modulesByOwner: [String: [String: ModuleSize]]?
+    
+    enum CodingKeys: String, CodingKey {
+        case modules, totalPackageSize, totalInstallSize, modulesByOwner
+    }
+}
+
+struct OwnershipEntry: Codable {
+    let identifier: String
+    let owner: String
+    let module: String?
+    
+    func matches(_ moduleName: String) -> Bool {
+        let pattern = identifier
+            .replacingOccurrences(of: "*", with: ".*")
+            .replacingOccurrences(of: "?", with: ".")
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return identifier.lowercased() == moduleName.lowercased()
+        }
+        
+        let range = NSRange(moduleName.startIndex..., in: moduleName)
+        return regex.firstMatch(in: moduleName, options: [], range: range) != nil
+    }
+}
+
+enum CaliperError: Error {
+    case unzipFailed
+    case invalidIPA
+    case invalidModuleMapping
+    case invalidOwnershipFile
+}
