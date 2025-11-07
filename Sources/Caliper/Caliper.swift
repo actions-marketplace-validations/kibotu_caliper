@@ -12,14 +12,11 @@ struct Caliper: ParsableCommand {
     @Option(name: .long, help: "Path to the IPA file")
     var ipaPath: String
     
-    @Option(name: .long, help: "Path to the unzipped IPA directory")
-    var unzippedPath: String
+    @Option(name: .long, help: "Path to the unzipped IPA directory (optional - will auto-generate if not provided)")
+    var unzippedPath: String?
     
     @Option(name: .long, help: "Optional path to LinkMap file for accurate binary sizes")
     var linkMapPath: String?
-    
-    @Option(name: .long, help: "JSON file containing module mappings (framework name -> module name)")
-    var moduleMappingPath: String?
     
     @Option(name: .long, help: "YAML file containing module ownership configuration")
     var ownershipFile: String?
@@ -27,31 +24,63 @@ struct Caliper: ParsableCommand {
     @Option(name: .long, help: "Filter output to show only modules owned by specific owner")
     var filterOwner: String?
     
-    @Flag(name: .long, help: "Pretty print JSON output")
-    var prettyPrint: Bool = false
+    @Option(name: .shortAndLong, help: "Output file path for JSON report (default: stdout)")
+    var output: String?
     
     @Flag(name: .long, help: "Group output by owner")
     var groupByOwner: Bool = false
     
     func run() throws {
-        // Load ownership file if provided
-        var ownershipEntries: [OwnershipEntry] = []
-        if let ownershipPath = ownershipFile {
-            ownershipEntries = try loadOwnershipFile(from: ownershipPath)
+        // Verify IPA file exists
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: ipaPath) else {
+            fputs("❌ Error: IPA file not found: \(ipaPath)\n", stderr)
+            throw CaliperError.invalidIPA
         }
         
-        // Start with empty module mappings - no defaults!
-        var moduleMapping: [String: String] = [:]
+        // Determine unzipped path (auto-generate if not provided)
+        let shouldCleanup: Bool
+        let actualUnzippedPath: String
         
-        // Load custom mappings if provided
-        if let mappingPath = moduleMappingPath {
-            if let customMapping = try? loadModuleMapping(from: mappingPath) {
-                moduleMapping.merge(customMapping) { _, new in new }
+        if let userProvidedPath = unzippedPath {
+            actualUnzippedPath = userProvidedPath
+            shouldCleanup = false // User provided path, don't auto-cleanup
+        } else {
+            // Auto-generate path: <ipa-name>_unzipped
+            let ipaURL = URL(fileURLWithPath: ipaPath)
+            let ipaName = ipaURL.deletingPathExtension().lastPathComponent
+            actualUnzippedPath = "\(ipaName)_unzipped"
+            shouldCleanup = true // Always cleanup auto-generated directories
+            
+            fputs("ℹ️  Using auto-generated unzipped path: \(actualUnzippedPath)\n", stderr)
+        }
+        
+        // Unzip IPA if needed
+        let needsUnzip = !fileManager.fileExists(atPath: actualUnzippedPath)
+        if needsUnzip {
+            fputs("\n📦 Unzipping IPA to: \(actualUnzippedPath)\n", stderr)
+            try unzipIPA(ipaPath: ipaPath, destination: actualUnzippedPath)
+            fputs("✅ IPA unzipped successfully\n", stderr)
+        } else {
+            fputs("ℹ️  Using existing unzipped directory: \(actualUnzippedPath)\n", stderr)
+        }
+        
+        // Setup cleanup defer early in main function scope
+        defer {
+            if shouldCleanup && needsUnzip {
+                fputs("\n🧹 Cleaning up temporary directory: \(actualUnzippedPath)\n", stderr)
+                try? fileManager.removeItem(atPath: actualUnzippedPath)
             }
         }
         
-        // If ownership file is loaded, use it for module mappings too
-        if !ownershipEntries.isEmpty {
+        // Load ownership file if provided
+        var ownershipEntries: [OwnershipEntry] = []
+        var moduleMapping: [String: String] = [:]
+        
+        if let ownershipPath = ownershipFile {
+            ownershipEntries = try loadOwnershipFile(from: ownershipPath)
+            
+            // Build module mappings from ownership file
             for entry in ownershipEntries {
                 if let moduleName = entry.module {
                     // Extract framework name from identifier
@@ -69,7 +98,7 @@ struct Caliper: ParsableCommand {
         // Build app size report
         var appSizeReport = try buildAppSizeReport(
             report: report,
-            unzippedPath: unzippedPath,
+            unzippedPath: actualUnzippedPath,
             moduleMapping: moduleMapping
         )
         
@@ -87,7 +116,7 @@ struct Caliper: ParsableCommand {
         }
         
         // Calculate totals
-        let totalSize = try calculateTotalSize(ipaPath: ipaPath, unzippedPath: unzippedPath)
+        let totalSize = try calculateTotalSize(ipaPath: ipaPath, unzippedPath: actualUnzippedPath)
         
         // Assign owners to modules
         if !ownershipEntries.isEmpty {
@@ -120,21 +149,29 @@ struct Caliper: ParsableCommand {
         
         // Output JSON
         fputs("\nGenerating JSON output...\n", stderr)
-        let output = CaliperOutput(
+        let outputData = CaliperOutput(
             modules: filteredModules,
             totalPackageSize: totalSize.packageSize,
             totalInstallSize: totalSize.installSize,
             modulesByOwner: modulesByOwner
         )
         
+        // Always use pretty print for better readability
         let encoder = JSONEncoder()
-        if prettyPrint {
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        }
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         
         do {
-            let jsonData = try encoder.encode(output)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
+            let jsonData = try encoder.encode(outputData)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                fputs("Error converting JSON to string\n", stderr)
+                throw CaliperError.invalidOutput
+            }
+            
+            // Write to file or stdout
+            if let outputPath = output {
+                try jsonString.write(toFile: outputPath, atomically: true, encoding: .utf8)
+                fputs("✅ Report saved to: \(outputPath)\n", stderr)
+            } else {
                 print(jsonString)
             }
         } catch {
@@ -158,9 +195,23 @@ struct Caliper: ParsableCommand {
         return nil
     }
     
-    private func loadModuleMapping(from path: String) throws -> [String: String] {
-        let data = try Data(contentsOf: URL(fileURLWithPath: path))
-        return try JSONDecoder().decode([String: String].self, from: data)
+    private func unzipIPA(ipaPath: String, destination: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-q", ipaPath, "-d", destination]
+        
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        guard process.terminationStatus == 0 else {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            fputs("❌ Failed to unzip IPA: \(errorOutput)\n", stderr)
+            throw CaliperError.unzipFailed
+        }
     }
     
     private func generateReport(ipaPath: String) throws -> String {
@@ -740,6 +791,6 @@ struct OwnershipEntry: Codable {
 enum CaliperError: Error {
     case unzipFailed
     case invalidIPA
-    case invalidModuleMapping
     case invalidOwnershipFile
+    case invalidOutput
 }
