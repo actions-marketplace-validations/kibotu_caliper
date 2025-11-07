@@ -1,210 +1,126 @@
 # Caliper
 
-A Swift command-line tool for measuring binary and bundle sizes of Swift packages in iOS IPA files.
+A Swift command-line tool for measuring binary and bundle sizes in iOS IPA files.
 
 ## Quick Start
 
 ```bash
-# Build the tool
+# Build
 swift build -c release
 
-# Analyze an IPA (automatic unzipping and cleanup)
-.build/release/Caliper --ipa-path MyApp.ipa
+# Analyze an IPA
+.build/release/Caliper --ipa-path MyApp.ipa --output report.json
 
 # With LinkMap for accurate binary sizes
 .build/release/Caliper \
   --ipa-path MyApp.ipa \
-  --link-map-path MyApp-LinkMap.txt
-
-# Save output to file (HTML report auto-generated as report.html)
-.build/release/Caliper --ipa-path MyApp.ipa --output report.json
-open report.html
-
-# With LinkMap and all features (auto-generates HTML)
-.build/release/Caliper \
-  --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
-  --ownership-file module-ownership.yml \
   --output report.json
 
-# Or use Make for one-command analysis
-make analyze-with-html IPA_PATH=MyApp.ipa LINK_MAP_PATH=MyApp-LinkMap.txt
+# Using Make
+make analyze IPA_PATH=MyApp.ipa OUTPUT=report.json
 ```
 
-## Features
-
-- 📊 Measures binary sizes, image assets, resources, and more
-- 🎯 Categorizes files by module/package
-- 🔍 Parses LinkMap files for accurate binary size measurements
-- 📦 Calculates both compressed (IPA) and uncompressed (install) sizes
-- 🎨 Analyzes asset catalogs (.car files) with detailed breakdowns
-- 📄 Outputs structured JSON for easy integration
-- 🌐 **Interactive HTML reports** - Spotify Ruler-style visualization (automatically generated with every JSON report)
-- 👥 Module ownership tracking and filtering
-- 🔄 Automatic IPA unzipping and cleanup
+HTML reports are automatically generated alongside JSON output.
 
 ## Installation
 
-### Quick Start
-
-Build the tool:
-
 ```bash
+# Build locally
 swift build -c release
-```
 
-The compiled binary will be at `.build/release/Caliper`.
-
-### System-wide Installation (Optional)
-
-Install to `/usr/local/bin` for easy access:
-
-```bash
+# Install system-wide (optional)
 make install
 ```
 
-Then use it from anywhere as `caliper`.
-
 ## Usage
 
-### Simple Usage (Recommended)
-
-The simplest way to use Caliper - it handles unzipping automatically:
+### Basic Analysis
 
 ```bash
-.build/release/Caliper --ipa-path path/to/YourApp.ipa
+# Output to stdout
+.build/release/Caliper --ipa-path MyApp.ipa
+
+# Save to file (creates report.json and report.html)
+.build/release/Caliper --ipa-path MyApp.ipa -o report.json
 ```
 
-This will:
-- ✅ Automatically unzip the IPA to a temporary directory
-- ✅ Analyze the contents
-- ✅ Clean up the temporary directory when done
-- ✅ Output formatted JSON to stdout
+### With LinkMap
 
-### Use Existing Unzipped Directory
-
-If you've already unzipped the IPA:
+LinkMap files provide accurate binary size measurements:
 
 ```bash
 .build/release/Caliper \
-  --ipa-path path/to/YourApp.ipa \
-  --unzipped-path path/to/unzipped/app
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --output report.json
 ```
 
-### With LinkMap for Accurate Binary Sizes
+### Module Ownership
 
-```bash
-.build/release/Caliper \
-  --ipa-path path/to/YourApp.ipa \
-  --link-map-path path/to/YourApp-LinkMap-normal-arm64.txt
-```
-
-### With Module Ownership Tracking
-
-Create a YAML ownership file (see `module-ownership.yml` for example):
+Track module ownership with a YAML file:
 
 ```yaml
 - identifier: "MyFeature*"
   owner: "team-alpha"
   module: "MyFeature"
-- identifier: "CoreFeature*"
-  owner: "team-core"
-  module: "CoreFeature"
 ```
 
-Then run with ownership tracking:
-
 ```bash
-.build/release/Caliper \
-  --ipa-path path/to/YourApp.ipa \
-  --ownership-file module-ownership.yml \
-  --group-by-owner
-```
-
-### Filter by Owner
-
-To see only modules owned by a specific team:
-
-```bash
-.build/release/Caliper \
-  --ipa-path path/to/YourApp.ipa \
-  --ownership-file module-ownership.yml \
-  --filter-owner team-alpha
-```
-
-### Save Output to File
-
-```bash
-.build/release/Caliper \
-  --ipa-path path/to/YourApp.ipa \
-  --output app-size-report.json
-```
-
-Or use the short form:
-
-```bash
-.build/release/Caliper --ipa-path path/to/YourApp.ipa -o report.json
-```
-
-### Generate Interactive HTML Report
-
-HTML reports are **automatically generated** whenever you specify an output file:
-
-```bash
-# Automatically generates both report.json and report.html
-.build/release/Caliper --ipa-path MyApp.ipa -o report.json
-
-# With LinkMap for accurate sizes (auto-generates HTML)
+# Group by owner
 .build/release/Caliper \
   --ipa-path MyApp.ipa \
-  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml \
+  --group-by-owner \
   --output report.json
 
-# Output filename determines HTML name
-.build/release/Caliper --ipa-path MyApp.ipa -o my-app-size.json
-# Creates: my-app-size.json and my-app-size.html
-
-# Using Makefile (alternative)
-make analyze-with-html IPA_PATH=MyApp.ipa LINK_MAP_PATH=MyApp-LinkMap.txt
+# Filter by specific owner
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --ownership-file module-ownership.yml \
+  --filter-owner team-alpha \
+  --output report.json
 ```
 
-**Note:** HTML is only generated when using `--output`. If you output to stdout (no `--output` flag), only JSON is produced.
+### Using Makefile
 
-The HTML report provides an interactive, Spotify Ruler-style visualization with:
-- **Search**: Find modules by name instantly
-- **Sorting**: By size, binary size, or name
-- **Filtering**: Filter by module owner
-- **Details**: Expandable cards showing size breakdowns, resources, and top files
-- **Charts**: Visual size comparison bars
-- **Resources**: Detailed breakdown by file type
-- **Top Files**: Top 10 largest files per module
+```bash
+# Full analysis
+make analyze IPA_PATH=MyApp.ipa LINK_MAP_PATH=LinkMap.txt OUTPUT=report.json
+
+# Quick test (stdout only)
+make example IPA_PATH=MyApp.ipa
+```
+
+## HTML Reports
+
+HTML reports are automatically generated when you specify `--output`. The HTML file uses the same name as your JSON file with `.html` extension.
+
+Features:
+- Search and filter modules
+- Sort by size, binary size, or name
+- Expandable module details
+- Resource breakdowns by file type
+- Top 10 largest files per module
 
 ## Output Format
 
-The tool outputs JSON with the following structure:
+JSON structure:
 
 ```json
 {
   "modules": {
-    "C24Core": {
-      "name": "C24Core",
+    "ModuleName": {
+      "name": "ModuleName",
       "binarySize": 1234567,
       "imageSize": 234567,
       "imageFileSize": 345678,
       "proguard": 2345678,
       "resources": {
-        "png": {
-          "size": 123456,
-          "count": 42
-        },
-        "pdf": {
-          "size": 67890,
-          "count": 15
-        }
+        "png": { "size": 123456, "count": 42 }
       },
       "top": {
-        "path/to/large/file.png": 12345,
-        "path/to/another/large/file.pdf": 11234
+        "path/to/file.png": 12345
       }
     }
   },
@@ -213,68 +129,41 @@ The tool outputs JSON with the following structure:
 }
 ```
 
-### Field Descriptions
+Fields:
+- `binarySize` - Compiled binary code size (bytes)
+- `imageSize` - Compressed image assets (bytes)
+- `imageFileSize` - Uncompressed image assets (bytes)
+- `proguard` - Total uncompressed module size (bytes)
+- `resources` - Resource files grouped by type
+- `top` - Top 30 largest files
+- `totalPackageSize` - IPA file size (bytes)
+- `totalInstallSize` - Installed app size (bytes)
 
-- `binarySize`: Size of the compiled binary code (bytes)
-- `imageSize`: Total compressed size of image assets (bytes)
-- `imageFileSize`: Total uncompressed size of image assets (bytes)
-- `proguard`: Total uncompressed size of all module files (bytes)
-- `resources`: Breakdown of resource files by type
-- `top`: Top 30 largest files in the module
-- `totalPackageSize`: Total IPA file size (bytes)
-- `totalInstallSize`: Total installed app size (bytes)
+## CI/CD Integration
 
-## Integration with CI/CD
-
-### Jenkins Pipeline Example
-
-Simplified Jenkins pipeline stage (no manual unzipping needed):
+### Jenkins
 
 ```groovy
 stage('App Size Analysis') {
     steps {
-        script {
-            // Build Caliper if not already built
-            sh 'cd caliper && swift build -c release'
-            
-            // Run Caliper (it handles unzipping and HTML generation automatically)
-            sh """
-                caliper/.build/release/Caliper \
-                    --ipa-path build/app/YourApp.ipa \
-                    --link-map-path build/derived_data/.../LinkMap.txt \
-                    --ownership-file caliper/module-ownership.yml \
-                    --group-by-owner \
-                    --output app-size-report.json
-            """
-            
-            // Archive the reports
-            archiveArtifacts artifacts: 'app-size-report.json,app-size-report.html'
-            
-            // Publish HTML report (requires HTML Publisher plugin)
-            publishHTML([
-                reportDir: '.',
-                reportFiles: 'app-size-report.html',
-                reportName: 'App Size Report',
-                keepAll: true
-            ])
-            
-            // Parse and use the JSON output
-            def json = readJSON file: 'app-size-report.json'
-            echo "📦 Total package size: ${json.totalPackageSize / 1024 / 1024} MB"
-            echo "💾 Total install size: ${json.totalInstallSize / 1024 / 1024} MB"
-            
-            // Example: Fail build if size exceeds threshold
-            def maxSizeMB = 100
-            def actualSizeMB = json.totalPackageSize / 1024 / 1024
-            if (actualSizeMB > maxSizeMB) {
-                error("App size ${actualSizeMB} MB exceeds threshold of ${maxSizeMB} MB")
-            }
-        }
+        sh 'cd caliper && swift build -c release'
+        sh """
+            caliper/.build/release/Caliper \
+                --ipa-path build/app/YourApp.ipa \
+                --link-map-path build/LinkMap.txt \
+                --output app-size-report.json
+        """
+        archiveArtifacts artifacts: 'app-size-report.json,app-size-report.html'
+        publishHTML([
+            reportDir: '.',
+            reportFiles: 'app-size-report.html',
+            reportName: 'App Size Report'
+        ])
     }
 }
 ```
 
-### GitHub Actions Example
+### GitHub Actions
 
 ```yaml
 - name: Analyze App Size
@@ -284,65 +173,37 @@ stage('App Size Analysis') {
       --ipa-path build/YourApp.ipa \
       --link-map-path build/LinkMap.txt \
       --output app-size-report.json
-    # HTML automatically generated as app-size-report.html
 
-- name: Upload Size Report
+- name: Upload Reports
   uses: actions/upload-artifact@v3
   with:
-    name: app-size-report
+    name: app-size-reports
     path: |
       app-size-report.json
       app-size-report.html
 ```
 
-## Comparison with spotify/ruler
+## Features
 
-Caliper is inspired by [Spotify's Ruler](https://github.com/spotify/ruler) but tailored for iOS-specific needs:
-
-- ✅ Native Swift implementation (no Ruby dependencies)
-- ✅ iOS-specific asset catalog parsing
-- ✅ LinkMap integration for accurate binary measurements
-- ✅ Designed for CI/CD integration
-- ✅ Module-level size breakdown
-- ✅ Interactive HTML reports with Spotify Ruler-style UI
-- ✅ Built-in ownership tracking and filtering
+- Binary, asset, and resource size measurements
+- Module/package categorization
+- LinkMap parsing for accurate binary sizes
+- Compressed (IPA) and uncompressed (install) size calculations
+- Asset catalog (.car files) analysis
+- Interactive HTML reports
+- Module ownership tracking
+- Automatic IPA handling (unzip/cleanup)
 
 ## Requirements
 
 - macOS 13.0+
-- Xcode command-line tools (for `xcrun assetutil`)
+- Xcode command-line tools
 - Swift 5.9+
 
-## Migration from Bash Script
+## Inspiration
 
-> ⚠️ **Note**: The `analyze-ipa.sh` bash script is now deprecated. Use the Swift tool directly instead.
-
-**Old way (deprecated):**
-```bash
-./analyze-ipa.sh MyApp.ipa path/to/LinkMap.txt module-ownership.yml
-```
-
-**New way (recommended):**
-```bash
-swift build -c release
-.build/release/Caliper \
-  --ipa-path MyApp.ipa \
-  --link-map-path path/to/LinkMap.txt \
-  --ownership-file module-ownership.yml \
-  --group-by-owner \
-  --output report.json
-```
-
-Benefits of the new approach:
-- ✅ No dependency on bash scripts
-- ✅ Automatic unzipping and cleanup (always)
-- ✅ Clean command-line interface
-- ✅ Built-in file output support
-- ✅ Pretty-printed JSON by default
-- ✅ Better error handling
-- ✅ Easier to maintain and extend
+Inspired by [Spotify's Ruler](https://github.com/spotify/ruler), adapted for iOS with native Swift implementation and iOS-specific features.
 
 ## License
 
 Internal use only.
-
