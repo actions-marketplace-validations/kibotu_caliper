@@ -16,8 +16,19 @@ swift build -c release
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt
 
-# Save output to file
+# Save output to file (HTML report auto-generated as report.html)
 .build/release/Caliper --ipa-path MyApp.ipa --output report.json
+open report.html
+
+# With LinkMap and all features (auto-generates HTML)
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml \
+  --output report.json
+
+# Or use Make for one-command analysis
+make analyze-with-html IPA_PATH=MyApp.ipa LINK_MAP_PATH=MyApp-LinkMap.txt
 ```
 
 ## Features
@@ -28,6 +39,9 @@ swift build -c release
 - 📦 Calculates both compressed (IPA) and uncompressed (install) sizes
 - 🎨 Analyzes asset catalogs (.car files) with detailed breakdowns
 - 📄 Outputs structured JSON for easy integration
+- 🌐 **Interactive HTML reports** - Spotify Ruler-style visualization (automatically generated with every JSON report)
+- 👥 Module ownership tracking and filtering
+- 🔄 Automatic IPA unzipping and cleanup
 
 ## Installation
 
@@ -132,6 +146,39 @@ Or use the short form:
 .build/release/Caliper --ipa-path path/to/YourApp.ipa -o report.json
 ```
 
+### Generate Interactive HTML Report
+
+HTML reports are **automatically generated** whenever you specify an output file:
+
+```bash
+# Automatically generates both report.json and report.html
+.build/release/Caliper --ipa-path MyApp.ipa -o report.json
+
+# With LinkMap for accurate sizes (auto-generates HTML)
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --output report.json
+
+# Output filename determines HTML name
+.build/release/Caliper --ipa-path MyApp.ipa -o my-app-size.json
+# Creates: my-app-size.json and my-app-size.html
+
+# Using Makefile (alternative)
+make analyze-with-html IPA_PATH=MyApp.ipa LINK_MAP_PATH=MyApp-LinkMap.txt
+```
+
+**Note:** HTML is only generated when using `--output`. If you output to stdout (no `--output` flag), only JSON is produced.
+
+The HTML report provides an interactive, Spotify Ruler-style visualization with:
+- **Search**: Find modules by name instantly
+- **Sorting**: By size, binary size, or name
+- **Filtering**: Filter by module owner
+- **Details**: Expandable cards showing size breakdowns, resources, and top files
+- **Charts**: Visual size comparison bars
+- **Resources**: Detailed breakdown by file type
+- **Top Files**: Top 10 largest files per module
+
 ## Output Format
 
 The tool outputs JSON with the following structure:
@@ -190,7 +237,7 @@ stage('App Size Analysis') {
             // Build Caliper if not already built
             sh 'cd caliper && swift build -c release'
             
-            // Run Caliper (it handles unzipping automatically)
+            // Run Caliper (it handles unzipping and HTML generation automatically)
             sh """
                 caliper/.build/release/Caliper \
                     --ipa-path build/app/YourApp.ipa \
@@ -200,8 +247,16 @@ stage('App Size Analysis') {
                     --output app-size-report.json
             """
             
-            // Archive the report
-            archiveArtifacts artifacts: 'app-size-report.json'
+            // Archive the reports
+            archiveArtifacts artifacts: 'app-size-report.json,app-size-report.html'
+            
+            // Publish HTML report (requires HTML Publisher plugin)
+            publishHTML([
+                reportDir: '.',
+                reportFiles: 'app-size-report.html',
+                reportName: 'App Size Report',
+                keepAll: true
+            ])
             
             // Parse and use the JSON output
             def json = readJSON file: 'app-size-report.json'
@@ -229,12 +284,15 @@ stage('App Size Analysis') {
       --ipa-path build/YourApp.ipa \
       --link-map-path build/LinkMap.txt \
       --output app-size-report.json
+    # HTML automatically generated as app-size-report.html
 
 - name: Upload Size Report
   uses: actions/upload-artifact@v3
   with:
     name: app-size-report
-    path: app-size-report.json
+    path: |
+      app-size-report.json
+      app-size-report.html
 ```
 
 ## Comparison with spotify/ruler
@@ -246,6 +304,8 @@ Caliper is inspired by [Spotify's Ruler](https://github.com/spotify/ruler) but t
 - ✅ LinkMap integration for accurate binary measurements
 - ✅ Designed for CI/CD integration
 - ✅ Module-level size breakdown
+- ✅ Interactive HTML reports with Spotify Ruler-style UI
+- ✅ Built-in ownership tracking and filtering
 
 ## Requirements
 
