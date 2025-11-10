@@ -11,6 +11,10 @@ final class ModuleSize: Codable {
     var proguard: Int64 = 0
     var resources: [String: Resource] = [:]
     var top: [String: Int64] = [:]
+    var files: [FileSize] = []
+    
+    // Internal dictionary for building files during parsing
+    private var filesDict: [String: FileSize] = [:]
     
     init(name: String) {
         self.name = name
@@ -41,8 +45,27 @@ final class ModuleSize: Codable {
         }
     }
     
+    /// Add file size information
+    func addFileSize(fileName: String, size: Int64) {
+        if filesDict[fileName] == nil {
+            filesDict[fileName] = FileSize(fileName: fileName)
+        }
+        filesDict[fileName]?.size += size
+        filesDict[fileName]?.symbolCount += 1
+    }
+    
+    /// Finalize the files list (convert to sorted array by size, largest first)
+    /// Filters out the module-level entry (unattributed code) to avoid confusion
+    func finalizeFiles() {
+        files = filesDict.values
+            .filter { $0.fileName != self.name } // Exclude module-level entry (unattributed)
+            .sorted { $0.size > $1.size }
+        // Clear the internal dictionary to save memory
+        filesDict.removeAll()
+    }
+    
     enum CodingKeys: String, CodingKey {
-        case name, owner, version, binarySize, imageSize, imageFileSize, proguard, resources, top
+        case name, owner, version, binarySize, imageSize, imageFileSize, proguard, resources, top, files
     }
 }
 

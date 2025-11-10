@@ -1,12 +1,49 @@
 import Foundation
 
+/// Function signature for swift_demangle
+typealias SwiftDemangle = @convention(c) (
+    _ mangledName: UnsafePointer<CChar>?,
+    _ mangledNameLength: Int,
+    _ outputBuffer: UnsafeMutablePointer<CChar>?,
+    _ outputBufferSize: UnsafeMutablePointer<Int>?,
+    _ flags: UInt32
+) -> UnsafeMutablePointer<CChar>?
+
+/// Structure to hold file information from LinkMap
+struct FileInfo {
+    let fileName: String
+    let moduleName: String
+}
+
+/// Structure to hold detailed parsing results
+struct LinkMapDetails {
+    var moduleSizes: [String: Int64] = ["other": 0]
+    var fileDetails: [String: [String: Int64]] = [:] // [moduleName: [fileName: size]]
+}
+
 /// Parser for LinkMap files to extract module sizes
 struct LinkMapParser {
+    /// Lazy-loaded swift_demangle function
+    private static let demangleFunction: SwiftDemangle? = {
+        guard let handle = dlopen(nil, RTLD_NOW) else {
+            return nil
+        }
+        guard let symbol = dlsym(handle, "swift_demangle") else {
+            return nil
+        }
+        return unsafeBitCast(symbol, to: SwiftDemangle.self)
+    }()
     
     /// Parse a LinkMap file and return module sizes
     func parse(linkMapPath: String) throws -> [String: Int64] {
-        var moduleSizes: [String: Int64] = ["other": 0]
-        var fileIndices: [String: String] = [:]
+        let details = try parseDetailed(linkMapPath: linkMapPath)
+        return details.moduleSizes
+    }
+    
+    /// Parse a LinkMap file and return detailed module and file sizes
+    func parseDetailed(linkMapPath: String) throws -> LinkMapDetails {
+        var details = LinkMapDetails()
+        var fileIndices: [String: FileInfo] = [:]
         
         let content = try readLinkMapFile(at: linkMapPath)
         let lines = content.components(separatedBy: .newlines)
@@ -26,13 +63,13 @@ struct LinkMapParser {
             case "files":
                 parseFileLine(line: line, fileIndices: &fileIndices)
             case "symbols":
-                parseSymbolLine(line: line, fileIndices: fileIndices, moduleSizes: &moduleSizes)
+                parseSymbolLine(line: line, fileIndices: fileIndices, details: &details)
             default:
                 break
             }
         }
         
-        return moduleSizes
+        return details
     }
     
     // MARK: - Private Methods
@@ -68,7 +105,7 @@ struct LinkMapParser {
         return ""
     }
     
-    private func parseFileLine(line: String, fileIndices: inout [String: String]) {
+    private func parseFileLine(line: String, fileIndices: inout [String: FileInfo]) {
         let components = line.components(separatedBy: "]")
         guard components.count > 1 else { return }
         
@@ -90,7 +127,9 @@ struct LinkMapParser {
         
         // Find module name
         let moduleName = findModuleName(baseName: baseName, pathComponents: pathComponents)
-        fileIndices[indexPart] = moduleName
+        
+        // Store both file name and module name
+        fileIndices[indexPart] = FileInfo(fileName: baseName, moduleName: moduleName)
     }
     
     private func findModuleName(baseName: String, pathComponents: [String]) -> String {
@@ -122,7 +161,7 @@ struct LinkMapParser {
         return baseName
     }
     
-    private func parseSymbolLine(line: String, fileIndices: [String: String], moduleSizes: inout [String: Int64]) {
+    private func parseSymbolLine(line: String, fileIndices: [String: FileInfo], details: inout LinkMapDetails) {
         let components = line.components(separatedBy: "\t")
         guard components.count > 2 else { return }
         
@@ -139,12 +178,239 @@ struct LinkMapParser {
             .replacingOccurrences(of: "[", with: "")
             .trimmingCharacters(in: .whitespaces)
         
-        // Add size to appropriate module
-        if let moduleName = fileIndices[indexPart] {
-            moduleSizes[moduleName, default: 0] += size
+        // Get symbol name (rest of the line after the file index)
+        let symbolName = indexComponents.count > 1 ? 
+            indexComponents[1].trimmingCharacters(in: .whitespaces) : ""
+        
+        // Add size to appropriate module and file
+        if let fileInfo = fileIndices[indexPart] {
+            // Update module size
+            details.moduleSizes[fileInfo.moduleName, default: 0] += size
+            
+            // Extract type/class name from symbol to get finer granularity
+            // Falls back to module name if we can't extract a name
+            let extractedFileName = extractClassNameFromSymbol(symbolName) ?? fileInfo.fileName
+            
+            // Update file size within module
+            if details.fileDetails[fileInfo.moduleName] == nil {
+                details.fileDetails[fileInfo.moduleName] = [:]
+            }
+            
+            // Track both size and count - we aggregate later
+            details.fileDetails[fileInfo.moduleName]?[extractedFileName, default: 0] += size
         } else {
-            moduleSizes["other", default: 0] += size
+            details.moduleSizes["other", default: 0] += size
         }
+    }
+    
+    /// Extract class/type name from a mangled Swift or Objective-C symbol
+    private func extractClassNameFromSymbol(_ symbol: String) -> String? {
+        // Handle compiler-generated symbols with embedded Swift names
+        if symbol.hasPrefix("l_get_witness_table ") {
+            // Extract and demangle the type after "l_get_witness_table "
+            let afterPrefix = String(symbol.dropFirst("l_get_witness_table ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "WitnessTable<\(demangled)>"
+            }
+        }
+        
+        if symbol.hasPrefix("_symbolic ") {
+            let afterPrefix = String(symbol.dropFirst("_symbolic ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "Symbolic<\(demangled)>"
+            }
+        }
+        
+        if symbol.hasPrefix("_associated conformance ") {
+            let afterPrefix = String(symbol.dropFirst("_associated conformance ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "AssociatedConformance<\(demangled)>"
+            }
+        }
+        
+        // Try using swift-demangle first for better accuracy
+        if symbol.hasPrefix("_$s") || symbol.hasPrefix("$s") || symbol.hasPrefix("_$S") || symbol.hasPrefix("$S") {
+            if let demangled = demangleSwiftSymbol(symbol) {
+                return demangled
+            }
+            // Fallback to manual parsing
+            return extractSwiftClassName(from: symbol)
+        }
+        
+        // Handle Objective-C symbols (e.g., -[ClassName methodName:] or +[ClassName methodName:])
+        if symbol.hasPrefix("-[") || symbol.hasPrefix("+[") {
+            let withoutPrefix = String(symbol.dropFirst(2))
+            if let spaceIndex = withoutPrefix.firstIndex(of: " ") {
+                return String(withoutPrefix[..<spaceIndex])
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Extract type name from compiler-generated symbols
+    private func extractFromCompilerSymbol(_ symbolPart: String) -> String? {
+        // Try to find a mangled Swift name pattern in the symbol
+        // Look for patterns like: 24C24ProfisNativeMessenger8PageItem
+        // This means: 24 chars for "C24ProfisNativeMessenger", then 8 chars for "PageItem"
+        
+        // First try to demangle if it starts with a digit (length-prefixed)
+        if let firstChar = symbolPart.first, firstChar.isNumber {
+            // Try to extract and demangle the embedded type name
+            if let extractedName = extractLengthPrefixedName(from: symbolPart) {
+                return extractedName
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Extract type name from length-prefixed mangled names
+    private func extractLengthPrefixedName(from symbol: String) -> String? {
+        var index = symbol.startIndex
+        var components: [String] = []
+        
+        // Try to extract up to 3 components (module, type, subtype)
+        for _ in 0..<3 {
+            guard index < symbol.endIndex else { break }
+            
+            // Extract length
+            guard let length = extractLength(from: symbol, at: &index),
+                  length > 0 && length < 100 else { // Sanity check
+                break
+            }
+            
+            // Extract name
+            let endIndex = symbol.index(index, offsetBy: length, limitedBy: symbol.endIndex) ?? symbol.endIndex
+            let component = String(symbol[index..<endIndex])
+            
+            // Only add if it looks like valid Swift identifier
+            if component.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                components.append(component)
+                index = endIndex
+            } else {
+                break
+            }
+        }
+        
+        // Return the last meaningful component (usually the type name)
+        return components.last
+    }
+    
+    /// Demangle Swift symbol using runtime swift_demangle function
+    private func demangleSwiftSymbol(_ symbol: String) -> String? {
+        guard let demangle = Self.demangleFunction else {
+            return nil
+        }
+        
+        return symbol.withCString { cString in
+            var size: Int = 0
+            let length = strlen(cString)
+            let result = demangle(cString, length, nil, &size, 0)
+            
+            guard let demangledPtr = result else {
+                return nil
+            }
+            
+            defer { free(demangledPtr) }
+            let demangledString = String(cString: demangledPtr)
+            
+            // Extract class name from demangled string
+            // Format: "ModuleName.ClassName.methodName(...)" or similar
+            return extractClassNameFromDemangled(demangledString)
+        }
+    }
+    
+    /// Extract class name from a demangled Swift symbol
+    private func extractClassNameFromDemangled(_ demangled: String) -> String? {
+        // Common patterns:
+        // "ProfisPartnerCore.PaymentCenterTutorialHostingController.viewDidLoad() -> ()"
+        // "ProfisPartnerCore.PaymentCenterTutorialHostingController.init() -> ProfisPartnerCore.PaymentCenterTutorialHostingController"
+        // "(extension in ProfisPartnerCore):__C.NSBundle.module.unsafeMutableAddressor : __C.NSBundle"
+        
+        // Remove generic parameters and return types for cleaner parsing
+        let cleaned = demangled.components(separatedBy: " -> ").first ?? demangled
+        
+        // Try to find pattern: ModuleName.ClassName
+        let components = cleaned.components(separatedBy: ".")
+        
+        // Handle extension syntax: "(extension in ModuleName):..."
+        if cleaned.hasPrefix("(extension in ") {
+            let afterExtension = cleaned.replacingOccurrences(of: "(extension in ", with: "")
+            if let colonIndex = afterExtension.firstIndex(of: ":") {
+                let remaining = String(afterExtension[afterExtension.index(after: colonIndex)...])
+                let parts = remaining.components(separatedBy: ".")
+                if parts.count >= 2 {
+                    // Return the class/type name (usually the second component)
+                    return parts[1].components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces)
+                }
+            }
+            return nil
+        }
+        
+        // For regular symbols, extract ClassName (second component typically)
+        if components.count >= 2 {
+            let className = components[1].components(separatedBy: "(").first?
+                .trimmingCharacters(in: .whitespaces)
+            
+            // Filter out noise
+            if let className = className,
+               !className.isEmpty,
+               !className.hasPrefix("_"),
+               className.count < 100,  // Sanity check
+               className.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                return className
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Extract class name from Swift mangled symbol
+    /// Format: _$s<ModuleNameLength><ModuleName><ClassNameLength><ClassName>...
+    private func extractSwiftClassName(from symbol: String) -> String? {
+        // Remove the _$s or $s prefix
+        let cleanSymbol = symbol.hasPrefix("_$s") ? String(symbol.dropFirst(3)) : String(symbol.dropFirst(2))
+        
+        // Try to parse the mangled name format
+        var index = cleanSymbol.startIndex
+        
+        // Skip module name
+        if let moduleLength = extractLength(from: cleanSymbol, at: &index) {
+            index = cleanSymbol.index(index, offsetBy: moduleLength, limitedBy: cleanSymbol.endIndex) ?? cleanSymbol.endIndex
+            
+            // Now extract class name
+            if index < cleanSymbol.endIndex,
+               let classLength = extractLength(from: cleanSymbol, at: &index),
+               classLength > 0,
+               classLength < 200 { // Sanity check
+                let endIndex = cleanSymbol.index(index, offsetBy: classLength, limitedBy: cleanSymbol.endIndex) ?? cleanSymbol.endIndex
+                let className = String(cleanSymbol[index..<endIndex])
+                
+                // Only return if it looks like a valid class name
+                if className.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                    return className
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Extract a length value from the mangled symbol
+    private func extractLength(from string: String, at index: inout String.Index) -> Int? {
+        var length = 0
+        var digitCount = 0
+        
+        while index < string.endIndex && string[index].isNumber {
+            if let digit = string[index].wholeNumberValue {
+                length = length * 10 + digit
+                digitCount += 1
+            }
+            index = string.index(after: index)
+        }
+        
+        return digitCount > 0 ? length : nil
     }
 }
 

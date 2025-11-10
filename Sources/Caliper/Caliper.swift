@@ -37,6 +37,7 @@ struct Caliper: ParsableCommand {
         let packageResolvedParser = PackageResolvedParser()
         let jsonReporter = JSONReporter()
         let htmlReporter = HTMLReporter()
+        let appInfoService = AppInfoService()
         
         // Verify IPA exists
         try ipaService.verifyIPAExists(at: ipaPath)
@@ -62,6 +63,21 @@ struct Caliper: ParsableCommand {
             ipaService.cleanup(path: unzippedPath)
         }
         
+        // Extract app info
+        ProgressReporter.section("📱 Extracting app information...")
+        let appInfo = try? appInfoService.extractAppInfo(from: unzippedPath)
+        if let info = appInfo {
+            if let name = info.appName {
+                ProgressReporter.message("App Name: \(name)")
+            }
+            if let version = info.versionString {
+                ProgressReporter.message("Version: \(version)")
+            }
+            if let bundleId = info.bundleIdentifier {
+                ProgressReporter.message("Bundle ID: \(bundleId)")
+            }
+        }
+        
         // Load ownership configuration
         let (ownershipEntries, moduleMapping) = try loadOwnershipConfiguration(
             ownershipService: ownershipService
@@ -80,13 +96,17 @@ struct Caliper: ParsableCommand {
         // Parse LinkMap if provided
         if let linkMapPath = linkMapPath {
             ProgressReporter.section("Parsing LinkMap file...")
-            let moduleSizes = try linkMapParser.parse(linkMapPath: linkMapPath)
-            ProgressReporter.message("Found \(moduleSizes.count) modules in LinkMap")
+            let linkMapDetails = try linkMapParser.parseDetailed(linkMapPath: linkMapPath)
+            ProgressReporter.message("Found \(linkMapDetails.moduleSizes.count) modules in LinkMap")
             
-            sizeCalculator.updateBinarySizes(
+            // Count total files
+            let totalFiles = linkMapDetails.fileDetails.values.reduce(0) { $0 + $1.count }
+            ProgressReporter.message("Found \(totalFiles) source files across all modules")
+            
+            sizeCalculator.updateBinarySizesDetailed(
                 in: &appSizeReport,
                 moduleMapping: moduleMapping,
-                moduleSizes: moduleSizes
+                linkMapDetails: linkMapDetails
             )
         }
         
@@ -131,6 +151,7 @@ struct Caliper: ParsableCommand {
         ProgressReporter.section("Generating JSON output...")
         let jsonOutputPath = "report.json"
         let jsonString = try jsonReporter.generate(
+            appInfo: appInfo,
             modules: appSizeReport,
             totalSize: totalSize,
             modulesByOwner: modulesByOwner,

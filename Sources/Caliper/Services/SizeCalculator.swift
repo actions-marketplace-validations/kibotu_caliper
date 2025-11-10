@@ -79,5 +79,51 @@ struct SizeCalculator {
             }
         }
     }
+    
+    /// Update binary sizes with detailed file information from LinkMap
+    func updateBinarySizesDetailed(
+        in appSizeReport: inout [String: ModuleSize],
+        moduleMapping: [String: String],
+        linkMapDetails: LinkMapDetails
+    ) {
+        // First update basic binary sizes
+        updateBinarySizes(
+            in: &appSizeReport,
+            moduleMapping: moduleMapping,
+            moduleSizes: linkMapDetails.moduleSizes
+        )
+        
+        // Then add file-level details
+        for (moduleName, files) in linkMapDetails.fileDetails {
+            // Skip synthetic "other" module
+            if moduleName == "other" {
+                continue
+            }
+            
+            if let moduleSize = appSizeReport[moduleName] {
+                // Add file sizes to the module
+                for (fileName, size) in files {
+                    moduleSize.addFileSize(fileName: fileName, size: size)
+                }
+                
+                // Finalize to sort and clean up
+                moduleSize.finalizeFiles()
+            }
+        }
+        
+        // Handle module mappings for file details
+        for (originalName, mappedName) in moduleMapping {
+            if let files = linkMapDetails.fileDetails[originalName],
+               let moduleSize = appSizeReport[mappedName] {
+                // Add file sizes from mapped module
+                for (fileName, size) in files {
+                    moduleSize.addFileSize(fileName: fileName, size: size)
+                }
+                
+                // Finalize to sort and clean up
+                moduleSize.finalizeFiles()
+            }
+        }
+    }
 }
 
