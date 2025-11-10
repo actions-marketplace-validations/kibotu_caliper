@@ -80,13 +80,17 @@ struct Caliper: ParsableCommand {
         // Parse LinkMap if provided
         if let linkMapPath = linkMapPath {
             ProgressReporter.section("Parsing LinkMap file...")
-            let moduleSizes = try linkMapParser.parse(linkMapPath: linkMapPath)
-            ProgressReporter.message("Found \(moduleSizes.count) modules in LinkMap")
+            let linkMapDetails = try linkMapParser.parseDetailed(linkMapPath: linkMapPath)
+            ProgressReporter.message("Found \(linkMapDetails.moduleSizes.count) modules in LinkMap")
             
-            sizeCalculator.updateBinarySizes(
+            // Count total files
+            let totalFiles = linkMapDetails.fileDetails.values.reduce(0) { $0 + $1.count }
+            ProgressReporter.message("Found \(totalFiles) source files across all modules")
+            
+            sizeCalculator.updateBinarySizesDetailed(
                 in: &appSizeReport,
                 moduleMapping: moduleMapping,
-                moduleSizes: moduleSizes
+                linkMapDetails: linkMapDetails
             )
         }
         

@@ -11,6 +11,7 @@ final class ModuleSize: Codable {
     var proguard: Int64 = 0
     var resources: [String: Resource] = [:]
     var top: [String: Int64] = [:]
+    var files: [String: FileSize] = [:]
     
     init(name: String) {
         self.name = name
@@ -41,8 +42,27 @@ final class ModuleSize: Codable {
         }
     }
     
+    /// Add file size information
+    func addFileSize(fileName: String, size: Int64) {
+        if files[fileName] == nil {
+            files[fileName] = FileSize(fileName: fileName)
+        }
+        files[fileName]?.size += size
+        files[fileName]?.symbolCount += 1
+    }
+    
+    /// Finalize the files list (sort and keep all files - no limit for now)
+    func finalizeFiles() {
+        // Keep all files for now - could limit to top N if needed
+        // let sorted = files.sorted { $0.value.size > $1.value.size }.prefix(200)
+        // files = [:]
+        // for (key, value) in sorted {
+        //     files[key] = value
+        // }
+    }
+    
     enum CodingKeys: String, CodingKey {
-        case name, owner, version, binarySize, imageSize, imageFileSize, proguard, resources, top
+        case name, owner, version, binarySize, imageSize, imageFileSize, proguard, resources, top, files
     }
 }
 
