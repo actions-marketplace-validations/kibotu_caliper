@@ -176,8 +176,18 @@ struct HTMLReporter {
         <!-- Ownership Tab -->
         <div id="ownership" class="tab-content">
             <div style="padding: 30px; background: white;">
-                <h2 style="font-size: 20px; color: #333; margin-bottom: 10px;">Ownership overview</h2>
-                <p style="color: #666; font-size: 14px; margin-bottom: 30px;">Shows how much of the overall app size is owned by each owner.</p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
+                    <div>
+                        <h2 style="font-size: 20px; color: #333; margin-bottom: 10px;">Ownership overview</h2>
+                        <p style="color: #666; font-size: 14px;">Shows how much of the overall app size is owned by each owner.</p>
+                    </div>
+                    <div style="min-width: 200px;">
+                        <select id="ownershipSortSelect" style="width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer;">
+                            <option value="downloadSize">Sort by: Download Size</option>
+                            <option value="installSize">Sort by: Install Size</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="ownership-chart-container">
                     <div id="ownershipChart"></div>
                 </div>
@@ -455,13 +465,14 @@ struct HTMLReporter {
         
         // Ownership Tab Functions
         let ownershipData = [];
+        let currentOwnershipSort = 'downloadSize';
         
-        function prepareOwnershipData() {
+        function prepareOwnershipData(sortBy = 'downloadSize') {
             if (!data.modulesByOwner || Object.keys(data.modulesByOwner).length === 0) {
                 return [];
             }
             
-            return Object.entries(data.modulesByOwner).map(([ownerName, modules]) => {
+            const ownerData = Object.entries(data.modulesByOwner).map(([ownerName, modules]) => {
                 const moduleList = Object.values(modules);
                 const totalBinarySize = moduleList.reduce((sum, m) => sum + (m.binarySize || 0), 0);
                 const totalInstallSize = moduleList.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
@@ -475,7 +486,14 @@ struct HTMLReporter {
                     totalBinarySize: totalBinarySize,
                     totalInstallSize: totalInstallSize
                 };
-            }).sort((a, b) => b.totalBinarySize - a.totalBinarySize);
+            });
+            
+            // Sort based on selected metric
+            if (sortBy === 'installSize') {
+                return ownerData.sort((a, b) => b.totalInstallSize - a.totalInstallSize);
+            } else {
+                return ownerData.sort((a, b) => b.totalBinarySize - a.totalBinarySize);
+            }
         }
         
         function renderOwnershipChart() {
@@ -707,10 +725,34 @@ struct HTMLReporter {
             }
             
             dropdown.innerHTML = '<option value="">Select an owner...</option>';
-            ownershipData.forEach((owner, index) => {
+            
+            // Create array with owner and original index
+            const ownerWithIndices = ownershipData.map((owner, index) => ({
+                owner: owner,
+                index: index
+            }));
+            
+            // Separate "others" from regular owners
+            const othersEntries = ownerWithIndices.filter(item => 
+                item.owner.name.toLowerCase() === 'others' || 
+                item.owner.name.toLowerCase() === 'other'
+            );
+            const regularEntries = ownerWithIndices.filter(item => 
+                item.owner.name.toLowerCase() !== 'others' && 
+                item.owner.name.toLowerCase() !== 'other'
+            );
+            
+            // Sort regular owners alphabetically
+            regularEntries.sort((a, b) => a.owner.name.localeCompare(b.owner.name));
+            
+            // Combine: regular owners first, then "others"
+            const sortedEntries = [...regularEntries, ...othersEntries];
+            
+            // Populate dropdown
+            sortedEntries.forEach(item => {
                 const option = document.createElement('option');
-                option.value = index;
-                option.textContent = owner.name;
+                option.value = item.index;
+                option.textContent = item.owner.name;
                 dropdown.appendChild(option);
             });
         }
@@ -866,10 +908,20 @@ struct HTMLReporter {
             renderOwnerDetails(e.target.value);
         });
         
+        document.getElementById('ownershipSortSelect').addEventListener('change', (e) => {
+            currentOwnershipSort = e.target.value;
+            ownershipData = prepareOwnershipData(currentOwnershipSort);
+            renderOwnershipChart();
+            populateOwnerDropdown();
+            // Reset detail view
+            document.getElementById('ownerDropdown').value = '';
+            document.getElementById('ownerDetailSection').style.display = 'none';
+        });
+        
         updateHeader();
         renderSummary();
         renderModules();
-        ownershipData = prepareOwnershipData();
+        ownershipData = prepareOwnershipData(currentOwnershipSort);
         renderOwnershipChart();
         populateOwnerDropdown();
     </script>
