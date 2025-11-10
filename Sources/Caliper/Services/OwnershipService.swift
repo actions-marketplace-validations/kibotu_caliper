@@ -50,14 +50,6 @@ struct OwnershipService {
         }
     }
     
-    /// Filter modules by owner
-    func filterModules(
-        _ modules: [String: ModuleSize],
-        byOwner owner: String
-    ) -> [String: ModuleSize] {
-        return modules.filter { $0.value.owner?.lowercased() == owner.lowercased() }
-    }
-    
     /// Group modules by owner
     func groupModulesByOwner(
         _ modules: [String: ModuleSize]

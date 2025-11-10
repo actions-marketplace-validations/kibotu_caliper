@@ -31,29 +31,6 @@ struct IPAService {
         }
     }
     
-    /// Determine the unzipped path (auto-generate if needed)
-    func determineUnzippedPath(
-        ipaPath: String,
-        userProvidedPath: String?
-    ) -> (path: String, shouldCleanup: Bool) {
-        if let userPath = userProvidedPath {
-            return (userPath, false)
-        }
-        
-        // Auto-generate path: <ipa-name>_unzipped
-        let ipaURL = URL(fileURLWithPath: ipaPath)
-        let ipaName = ipaURL.deletingPathExtension().lastPathComponent
-        let autoPath = "\(ipaName)_unzipped"
-        
-        fputs("ℹ️  Using auto-generated unzipped path: \(autoPath)\n", stderr)
-        return (autoPath, true)
-    }
-    
-    /// Check if unzipping is needed
-    func needsUnzip(at path: String) -> Bool {
-        return !fileManager.fileExists(atPath: path)
-    }
-    
     /// Clean up a temporary directory
     func cleanup(path: String) {
         fputs("\n🧹 Cleaning up temporary directory: \(path)\n", stderr)

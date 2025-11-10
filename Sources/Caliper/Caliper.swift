@@ -11,23 +11,11 @@ struct Caliper: ParsableCommand {
     @Option(name: .long, help: "Path to the IPA file")
     var ipaPath: String
     
-    @Option(name: .long, help: "Path to the unzipped IPA directory (optional - will auto-generate if not provided)")
-    var unzippedPath: String?
-    
     @Option(name: .long, help: "Optional path to LinkMap file for accurate binary sizes")
     var linkMapPath: String?
     
-    @Option(name: .long, help: "YAML file containing module ownership configuration")
+    @Option(name: .long, help: "Optional YAML file containing module ownership configuration")
     var ownershipFile: String?
-    
-    @Option(name: .long, help: "Filter output to show only modules owned by specific owner")
-    var filterOwner: String?
-    
-    @Option(name: .shortAndLong, help: "Output file path for JSON report (default: stdout). HTML report will be auto-generated with .html extension")
-    var output: String?
-    
-    @Flag(name: .long, help: "Group output by owner")
-    var groupByOwner: Bool = false
     
     // MARK: - Main Execution
     
@@ -44,27 +32,25 @@ struct Caliper: ParsableCommand {
         // Verify IPA exists
         try ipaService.verifyIPAExists(at: ipaPath)
         
-        // Determine unzipped path
-        let (actualUnzippedPath, shouldCleanup) = ipaService.determineUnzippedPath(
-            ipaPath: ipaPath,
-            userProvidedPath: unzippedPath
-        )
+        // Generate unzipped path (always auto-generate and cleanup)
+        let ipaURL = URL(fileURLWithPath: ipaPath)
+        let ipaName = ipaURL.deletingPathExtension().lastPathComponent
+        let unzippedPath = "\(ipaName)_unzipped"
         
-        // Unzip if needed
-        let needsUnzip = ipaService.needsUnzip(at: actualUnzippedPath)
-        if needsUnzip {
-            ProgressReporter.section("📦 Unzipping IPA to: \(actualUnzippedPath)")
-            try ipaService.unzip(ipaPath: ipaPath, destination: actualUnzippedPath)
-            ProgressReporter.success("IPA unzipped successfully")
-        } else {
-            ProgressReporter.info("Using existing unzipped directory: \(actualUnzippedPath)")
+        // Remove existing unzipped directory if it exists
+        if FileManager.default.fileExists(atPath: unzippedPath) {
+            ProgressReporter.info("Removing existing unzipped directory: \(unzippedPath)")
+            try? FileManager.default.removeItem(atPath: unzippedPath)
         }
         
-        // Setup cleanup
+        // Unzip IPA
+        ProgressReporter.section("📦 Unzipping IPA to: \(unzippedPath)")
+        try ipaService.unzip(ipaPath: ipaPath, destination: unzippedPath)
+        ProgressReporter.success("IPA unzipped successfully")
+        
+        // Always cleanup at the end
         defer {
-            if shouldCleanup && needsUnzip {
-                ipaService.cleanup(path: actualUnzippedPath)
-            }
+            ipaService.cleanup(path: unzippedPath)
         }
         
         // Load ownership configuration
@@ -78,7 +64,7 @@ struct Caliper: ParsableCommand {
         // Build app size report
         var appSizeReport = try ipaParser.buildAppSizeReport(
             report: report,
-            unzippedPath: actualUnzippedPath,
+            unzippedPath: unzippedPath,
             moduleMapping: moduleMapping
         )
         
@@ -98,7 +84,7 @@ struct Caliper: ParsableCommand {
         // Calculate total sizes
         let totalSize = try sizeCalculator.calculateTotalSize(
             ipaPath: ipaPath,
-            unzippedPath: actualUnzippedPath
+            unzippedPath: unzippedPath
         )
         
         // Assign owners to modules
@@ -106,38 +92,31 @@ struct Caliper: ParsableCommand {
             ownershipService.assignOwners(to: appSizeReport, using: ownershipEntries)
         }
         
-        // Filter by owner if specified
-        var filteredModules = appSizeReport
-        if let owner = filterOwner {
-            filteredModules = ownershipService.filterModules(appSizeReport, byOwner: owner)
-        }
-        
-        // Group by owner if requested
+        // Group by owner if ownership file was provided
         var modulesByOwner: [String: [String: ModuleSize]]? = nil
-        if groupByOwner && !ownershipEntries.isEmpty {
-            modulesByOwner = ownershipService.groupModulesByOwner(filteredModules)
+        if !ownershipEntries.isEmpty {
+            modulesByOwner = ownershipService.groupModulesByOwner(appSizeReport)
         }
         
-        // Generate JSON output
+        // Generate JSON output (always to report.json)
         ProgressReporter.section("Generating JSON output...")
+        let jsonOutputPath = "report.json"
         let jsonString = try jsonReporter.generate(
-            modules: filteredModules,
+            modules: appSizeReport,
             totalSize: totalSize,
             modulesByOwner: modulesByOwner,
-            outputPath: output
+            outputPath: jsonOutputPath
         )
         
-        // Generate HTML report if output file is specified
-        if let outputPath = output {
-            ProgressReporter.section("📊 Generating HTML report...")
-            let htmlPath = htmlReporter.determineOutputPath(from: outputPath)
-            do {
-                try htmlReporter.generate(jsonString: jsonString, outputPath: htmlPath)
-                ProgressReporter.success("HTML report saved to: \(htmlPath)")
-            } catch {
-                ProgressReporter.error("Failed to generate HTML report: \(error)")
-                throw error
-            }
+        // Generate HTML report (always to report.html)
+        ProgressReporter.section("📊 Generating HTML report...")
+        let htmlOutputPath = "report.html"
+        do {
+            try htmlReporter.generate(jsonString: jsonString, outputPath: htmlOutputPath)
+            ProgressReporter.success("HTML report saved to: \(htmlOutputPath)")
+        } catch {
+            ProgressReporter.error("Failed to generate HTML report: \(error)")
+            throw error
         }
     }
     

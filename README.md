@@ -8,20 +8,22 @@ A Swift command-line tool for measuring binary and bundle sizes in iOS IPA files
 # Build
 swift build -c release
 
-# Analyze an IPA
-.build/release/Caliper --ipa-path MyApp.ipa --output report.json
+# Analyze an IPA (generates report.json and report.html)
+.build/release/Caliper --ipa-path MyApp.ipa
 
 # With LinkMap for accurate binary sizes
 .build/release/Caliper \
   --ipa-path MyApp.ipa \
-  --link-map-path MyApp-LinkMap.txt \
-  --output report.json
+  --link-map-path MyApp-LinkMap.txt
 
-# Using Make
-make analyze IPA_PATH=MyApp.ipa OUTPUT=report.json
+# With module ownership tracking
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml
 ```
 
-HTML reports are automatically generated alongside JSON output.
+Reports are always saved to `report.json` and `report.html` in the current directory.
 
 ## Installation
 
@@ -38,11 +40,8 @@ make install
 ### Basic Analysis
 
 ```bash
-# Output to stdout
+# Analyze an IPA (creates report.json and report.html)
 .build/release/Caliper --ipa-path MyApp.ipa
-
-# Save to file (creates report.json and report.html)
-.build/release/Caliper --ipa-path MyApp.ipa -o report.json
 ```
 
 ### With LinkMap
@@ -52,8 +51,7 @@ LinkMap files provide accurate binary size measurements:
 ```bash
 .build/release/Caliper \
   --ipa-path MyApp.ipa \
-  --link-map-path MyApp-LinkMap.txt \
-  --output report.json
+  --link-map-path MyApp-LinkMap.txt
 ```
 
 ### Module Ownership
@@ -67,34 +65,29 @@ Track module ownership with a YAML file:
 ```
 
 ```bash
-# Group by owner
+# Analyze with ownership tracking (modules grouped by owner in output)
 .build/release/Caliper \
   --ipa-path MyApp.ipa \
-  --ownership-file module-ownership.yml \
-  --group-by-owner \
-  --output report.json
-
-# Filter by specific owner
-.build/release/Caliper \
-  --ipa-path MyApp.ipa \
-  --ownership-file module-ownership.yml \
-  --filter-owner team-alpha \
-  --output report.json
+  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml
 ```
 
-### Using Makefile
+## Command Line Options
 
-```bash
-# Full analysis
-make analyze IPA_PATH=MyApp.ipa LINK_MAP_PATH=LinkMap.txt OUTPUT=report.json
+```
+USAGE: caliper --ipa-path <ipa-path> [--link-map-path <link-map-path>] [--ownership-file <ownership-file>]
 
-# Quick test (stdout only)
-make example IPA_PATH=MyApp.ipa
+OPTIONS:
+  --ipa-path <ipa-path>   Path to the IPA file
+  --link-map-path <link-map-path>
+                          Optional path to LinkMap file for accurate binary sizes
+  --ownership-file <ownership-file>
+                          Optional YAML file containing module ownership configuration
 ```
 
 ## HTML Reports
 
-HTML reports are automatically generated when you specify `--output`. The HTML file uses the same name as your JSON file with `.html` extension.
+HTML reports are automatically generated as `report.html` alongside the JSON output.
 
 Features:
 - Search and filter modules
@@ -150,13 +143,12 @@ stage('App Size Analysis') {
         sh """
             caliper/.build/release/Caliper \
                 --ipa-path build/app/YourApp.ipa \
-                --link-map-path build/LinkMap.txt \
-                --output app-size-report.json
+                --link-map-path build/LinkMap.txt
         """
-        archiveArtifacts artifacts: 'app-size-report.json,app-size-report.html'
+        archiveArtifacts artifacts: 'report.json,report.html'
         publishHTML([
             reportDir: '.',
-            reportFiles: 'app-size-report.html',
+            reportFiles: 'report.html',
             reportName: 'App Size Report'
         ])
     }
@@ -171,16 +163,15 @@ stage('App Size Analysis') {
     swift build -c release
     .build/release/Caliper \
       --ipa-path build/YourApp.ipa \
-      --link-map-path build/LinkMap.txt \
-      --output app-size-report.json
+      --link-map-path build/LinkMap.txt
 
 - name: Upload Reports
   uses: actions/upload-artifact@v3
   with:
     name: app-size-reports
     path: |
-      app-size-report.json
-      app-size-report.html
+      report.json
+      report.html
 ```
 
 ## Features
