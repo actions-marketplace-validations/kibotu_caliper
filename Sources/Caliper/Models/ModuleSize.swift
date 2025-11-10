@@ -55,8 +55,11 @@ final class ModuleSize: Codable {
     }
     
     /// Finalize the files list (convert to sorted array by size, largest first)
+    /// Filters out the module-level entry (unattributed code) to avoid confusion
     func finalizeFiles() {
-        files = filesDict.values.sorted { $0.size > $1.size }
+        files = filesDict.values
+            .filter { $0.fileName != self.name } // Exclude module-level entry (unattributed)
+            .sorted { $0.size > $1.size }
         // Clear the internal dictionary to save memory
         filesDict.removeAll()
     }

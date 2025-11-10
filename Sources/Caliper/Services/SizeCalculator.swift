@@ -105,7 +105,8 @@ struct SizeCalculator {
                 for (fileName, size) in files {
                     moduleSize.addFileSize(fileName: fileName, size: size)
                 }
-                // Finalize to keep only top 50 files
+                
+                // Finalize to sort and clean up
                 moduleSize.finalizeFiles()
             }
         }
@@ -118,7 +119,8 @@ struct SizeCalculator {
                 for (fileName, size) in files {
                     moduleSize.addFileSize(fileName: fileName, size: size)
                 }
-                // Finalize to keep only top 50 files
+                
+                // Finalize to sort and clean up
                 moduleSize.finalizeFiles()
             }
         }

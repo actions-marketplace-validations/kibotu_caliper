@@ -187,7 +187,8 @@ struct LinkMapParser {
             // Update module size
             details.moduleSizes[fileInfo.moduleName, default: 0] += size
             
-            // Try to extract class/type name from symbol for better granularity
+            // Extract type/class name from symbol to get finer granularity
+            // Falls back to module name if we can't extract a name
             let extractedFileName = extractClassNameFromSymbol(symbolName) ?? fileInfo.fileName
             
             // Update file size within module
@@ -204,6 +205,29 @@ struct LinkMapParser {
     
     /// Extract class/type name from a mangled Swift or Objective-C symbol
     private func extractClassNameFromSymbol(_ symbol: String) -> String? {
+        // Handle compiler-generated symbols with embedded Swift names
+        if symbol.hasPrefix("l_get_witness_table ") {
+            // Extract and demangle the type after "l_get_witness_table "
+            let afterPrefix = String(symbol.dropFirst("l_get_witness_table ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "WitnessTable<\(demangled)>"
+            }
+        }
+        
+        if symbol.hasPrefix("_symbolic ") {
+            let afterPrefix = String(symbol.dropFirst("_symbolic ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "Symbolic<\(demangled)>"
+            }
+        }
+        
+        if symbol.hasPrefix("_associated conformance ") {
+            let afterPrefix = String(symbol.dropFirst("_associated conformance ".count))
+            if let demangled = extractFromCompilerSymbol(afterPrefix) {
+                return "AssociatedConformance<\(demangled)>"
+            }
+        }
+        
         // Try using swift-demangle first for better accuracy
         if symbol.hasPrefix("_$s") || symbol.hasPrefix("$s") || symbol.hasPrefix("_$S") || symbol.hasPrefix("$S") {
             if let demangled = demangleSwiftSymbol(symbol) {
@@ -222,6 +246,55 @@ struct LinkMapParser {
         }
         
         return nil
+    }
+    
+    /// Extract type name from compiler-generated symbols
+    private func extractFromCompilerSymbol(_ symbolPart: String) -> String? {
+        // Try to find a mangled Swift name pattern in the symbol
+        // Look for patterns like: 24C24ProfisNativeMessenger8PageItem
+        // This means: 24 chars for "C24ProfisNativeMessenger", then 8 chars for "PageItem"
+        
+        // First try to demangle if it starts with a digit (length-prefixed)
+        if let firstChar = symbolPart.first, firstChar.isNumber {
+            // Try to extract and demangle the embedded type name
+            if let extractedName = extractLengthPrefixedName(from: symbolPart) {
+                return extractedName
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Extract type name from length-prefixed mangled names
+    private func extractLengthPrefixedName(from symbol: String) -> String? {
+        var index = symbol.startIndex
+        var components: [String] = []
+        
+        // Try to extract up to 3 components (module, type, subtype)
+        for _ in 0..<3 {
+            guard index < symbol.endIndex else { break }
+            
+            // Extract length
+            guard let length = extractLength(from: symbol, at: &index),
+                  length > 0 && length < 100 else { // Sanity check
+                break
+            }
+            
+            // Extract name
+            let endIndex = symbol.index(index, offsetBy: length, limitedBy: symbol.endIndex) ?? symbol.endIndex
+            let component = String(symbol[index..<endIndex])
+            
+            // Only add if it looks like valid Swift identifier
+            if component.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                components.append(component)
+                index = endIndex
+            } else {
+                break
+            }
+        }
+        
+        // Return the last meaningful component (usually the type name)
+        return components.last
     }
     
     /// Demangle Swift symbol using runtime swift_demangle function
