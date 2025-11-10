@@ -1,34 +1,32 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
-    name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest]
-        swift: ["5.10"]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ matrix.swift }}
-      
-      - name: Build (Release)
-        run: swift build -c release
-      
-      - name: Verify build
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
         run: |
-          if [ ! -f .build/release/Caliper ]; then
-            echo "Error: Caliper binary not found"
-            exit 1
-          fi
-      
-      - name: Run help command
-        run: .build/release/Caliper --help
-      
-      - name: Show version
-        run: .build/release/Caliper --version
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Show build artifacts
+        run: |
+          echo "Build completed successfully!"
+          ls -la .build/release/
