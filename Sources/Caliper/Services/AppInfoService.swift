@@ -1,0 +1,67 @@
+import Foundation
+
+/// Service for extracting app information from IPA
+struct AppInfoService {
+    private let fileManager = FileManager.default
+    
+    /// Extract app info from the unzipped IPA directory
+    func extractAppInfo(from unzippedPath: String) throws -> AppInfo? {
+        // Find the .app directory
+        guard let appDirectory = findAppDirectory(in: unzippedPath) else {
+            ProgressReporter.warning("Could not find .app directory in IPA")
+            return nil
+        }
+        
+        // Read Info.plist
+        let infoPlistPath = "\(appDirectory)/Info.plist"
+        guard fileManager.fileExists(atPath: infoPlistPath) else {
+            ProgressReporter.warning("Info.plist not found at: \(infoPlistPath)")
+            return nil
+        }
+        
+        return try parseInfoPlist(at: infoPlistPath)
+    }
+    
+    // MARK: - Private Methods
+    
+    private func findAppDirectory(in unzippedPath: String) -> String? {
+        let payloadPath = "\(unzippedPath)/Payload"
+        
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: payloadPath) else {
+            return nil
+        }
+        
+        // Find the .app directory
+        for item in contents {
+            if item.hasSuffix(".app") {
+                return "\(payloadPath)/\(item)"
+            }
+        }
+        
+        return nil
+    }
+    
+    private func parseInfoPlist(at path: String) throws -> AppInfo? {
+        let url = URL(fileURLWithPath: path)
+        
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            ProgressReporter.warning("Failed to parse Info.plist")
+            return nil
+        }
+        
+        let appName = plist["CFBundleDisplayName"] as? String 
+            ?? plist["CFBundleName"] as? String
+        let version = plist["CFBundleShortVersionString"] as? String
+        let buildNumber = plist["CFBundleVersion"] as? String
+        let bundleIdentifier = plist["CFBundleIdentifier"] as? String
+        
+        return AppInfo(
+            appName: appName,
+            version: version,
+            buildNumber: buildNumber,
+            bundleIdentifier: bundleIdentifier
+        )
+    }
+}
+

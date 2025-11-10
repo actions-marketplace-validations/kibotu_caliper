@@ -37,6 +37,7 @@ struct Caliper: ParsableCommand {
         let packageResolvedParser = PackageResolvedParser()
         let jsonReporter = JSONReporter()
         let htmlReporter = HTMLReporter()
+        let appInfoService = AppInfoService()
         
         // Verify IPA exists
         try ipaService.verifyIPAExists(at: ipaPath)
@@ -60,6 +61,21 @@ struct Caliper: ParsableCommand {
         // Always cleanup at the end
         defer {
             ipaService.cleanup(path: unzippedPath)
+        }
+        
+        // Extract app info
+        ProgressReporter.section("📱 Extracting app information...")
+        let appInfo = try? appInfoService.extractAppInfo(from: unzippedPath)
+        if let info = appInfo {
+            if let name = info.appName {
+                ProgressReporter.message("App Name: \(name)")
+            }
+            if let version = info.versionString {
+                ProgressReporter.message("Version: \(version)")
+            }
+            if let bundleId = info.bundleIdentifier {
+                ProgressReporter.message("Bundle ID: \(bundleId)")
+            }
         }
         
         // Load ownership configuration
@@ -135,6 +151,7 @@ struct Caliper: ParsableCommand {
         ProgressReporter.section("Generating JSON output...")
         let jsonOutputPath = "report.json"
         let jsonString = try jsonReporter.generate(
+            appInfo: appInfo,
             modules: appSizeReport,
             totalSize: totalSize,
             modulesByOwner: modulesByOwner,

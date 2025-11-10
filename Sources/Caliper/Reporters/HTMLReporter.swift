@@ -33,14 +33,14 @@ struct HTMLReporter {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
         .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+        header { background: linear-gradient(135deg, #063773 0%, #0a5aa8 100%); color: white; padding: 30px; }
         header h1 { font-size: 32px; margin-bottom: 10px; }
         
         /* Tabs */
         .tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #e0e0e0; }
         .tab { padding: 15px 30px; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
-        .tab:hover { color: #667eea; background: rgba(102, 126, 234, 0.05); }
-        .tab.active { color: #667eea; border-bottom-color: #667eea; background: white; }
+        .tab:hover { color: #063773; background: rgba(6, 55, 115, 0.05); }
+        .tab.active { color: #063773; border-bottom-color: #063773; background: white; }
         
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -57,19 +57,19 @@ struct HTMLReporter {
         
         .modules-grid { padding: 30px; }
         .module-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 16px; overflow: hidden; transition: all 0.2s ease; }
-        .module-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #667eea; }
+        .module-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #063773; }
         .module-header { padding: 18px 24px; background: #fafafa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; transition: background 0.15s ease; }
         .module-header:hover { background: #f5f6fa; }
         .module-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .module-name-row { font-size: 16px; font-weight: 600; color: #2d3748; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .module-version { color: #667eea; }
-        .owner-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2); flex-shrink: 0; }
+        .module-version { color: #063773; }
+        .owner-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #063773 0%, #0a5aa8 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(6, 55, 115, 0.2); flex-shrink: 0; }
         .module-stats { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
         .module-stat { display: flex; flex-direction: column; align-items: flex-end; }
         .module-stat-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-        .module-stat-value { font-size: 14px; color: #667eea; font-weight: 700; white-space: nowrap; }
-        .module-size { font-size: 16px; color: #667eea; font-weight: 700; white-space: nowrap; }
-        .expand-icon { color: #667eea; font-size: 12px; transition: transform 0.2s; }
+        .module-stat-value { font-size: 14px; color: #063773; font-weight: 700; white-space: nowrap; }
+        .module-size { font-size: 16px; color: #063773; font-weight: 700; white-space: nowrap; }
+        .expand-icon { color: #063773; font-size: 12px; transition: transform 0.2s; }
         .expand-icon.open { transform: rotate(180deg); }
         
         .module-details { padding: 20px 24px; display: none; background: #fafafa; }
@@ -81,7 +81,7 @@ struct HTMLReporter {
         .size-bar-label .name { color: #333; font-weight: 500; }
         .size-bar-label .value { color: #666; }
         .size-bar-fill { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
-        .size-bar-progress { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.3s; }
+        .size-bar-progress { height: 100%; background: linear-gradient(90deg, #063773 0%, #0a5aa8 100%); transition: width 0.3s; }
         
         .resources-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
         .resource-card { background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; }
@@ -91,19 +91,19 @@ struct HTMLReporter {
         
         .files-section { margin-top: 30px; }
         .files-section h4 { font-size: 16px; margin-bottom: 15px; color: #333; display: flex; align-items: center; gap: 10px; }
-        .files-section h4 .count-badge { background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+        .files-section h4 .count-badge { background: #063773; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
         .files-table { width: 100%; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #e0e0e0; }
         .files-table-header { display: grid; grid-template-columns: 1fr auto; gap: 15px; padding: 12px 15px; background: #f8f9fa; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e0e0e0; }
         .file-row { display: grid; grid-template-columns: 1fr auto; gap: 15px; padding: 12px 15px; border-bottom: 1px solid #f0f0f0; transition: background 0.15s; align-items: center; }
         .file-row:last-child { border-bottom: none; }
         .file-row:hover { background: #f8f9fa; }
-        .file-name { color: #2d3748; font-family: 'Courier New', monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-        .file-size { color: #667eea; font-weight: 600; font-size: 13px; text-align: right; white-space: nowrap; }
+        .file-name { color: #2d3748; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+        .file-size { color: #063773; font-weight: 600; font-size: 13px; text-align: right; white-space: nowrap; }
         
         .top-files { margin-top: 20px; }
         .top-files h4 { font-size: 16px; margin-bottom: 15px; color: #333; }
         .file-item { display: flex; justify-content: space-between; padding: 10px; background: white; margin-bottom: 5px; border-radius: 4px; font-size: 13px; border: 1px solid #e0e0e0; }
-        .file-path { color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', monospace; }
+        .file-path { color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif; }
         .file-size-value { color: #333; font-weight: 500; margin-left: 15px; }
         
         .no-results { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
@@ -113,8 +113,8 @@ struct HTMLReporter {
 <body>
     <div class="container">
         <header>
-            <h1>📱 App Size Report</h1>
-            <p>Detailed analysis of app module sizes and resources</p>
+            <h1 id="headerTitle">📱 App Size Report</h1>
+            <p id="headerSubtitle">Detailed analysis of app module sizes and resources</p>
         </header>
         
         <div class="tabs">
@@ -162,6 +162,36 @@ struct HTMLReporter {
         const data = __DATA__;
         let currentTab = 'breakdown';
         let currentSort = 'downloadSize';
+        
+        // Update header with app info if available
+        function updateHeader() {
+            if (data.appInfo) {
+                const appInfo = data.appInfo;
+                let title = '📱 ';
+                let subtitle = 'Detailed analysis of app module sizes and resources';
+                
+                if (appInfo.appName) {
+                    title += appInfo.appName;
+                } else {
+                    title += 'App Size Report';
+                }
+                
+                const subtitleParts = [];
+                if (appInfo.version) {
+                    subtitleParts.push('Version ' + appInfo.version);
+                }
+                if (appInfo.bundleIdentifier) {
+                    subtitleParts.push(appInfo.bundleIdentifier);
+                }
+                
+                if (subtitleParts.length > 0) {
+                    subtitle = subtitleParts.join(' • ');
+                }
+                
+                document.getElementById('headerTitle').textContent = title;
+                document.getElementById('headerSubtitle').textContent = subtitle;
+            }
+        }
         
         function switchTab(tabName) {
             currentTab = tabName;
@@ -369,6 +399,7 @@ struct HTMLReporter {
             renderModules(document.getElementById('searchInput').value, e.target.value);
         });
         
+        updateHeader();
         renderSummary();
         renderModules();
     </script>
