@@ -57,7 +57,7 @@ struct OwnershipService {
         var grouped: [String: [String: ModuleSize]] = [:]
         
         for (moduleName, moduleSize) in modules {
-            let owner = moduleSize.owner ?? "unknown"
+            let owner = moduleSize.owner ?? "others"
             if grouped[owner] == nil {
                 grouped[owner] = [:]
             }

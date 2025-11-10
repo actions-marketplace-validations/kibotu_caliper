@@ -29,6 +29,7 @@ struct HTMLReporter {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Size Report</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
@@ -108,6 +109,31 @@ struct HTMLReporter {
         
         .no-results { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
         .no-data { padding: 15px; color: #999; font-style: italic; text-align: center; }
+        
+        /* D3 Chart Styles */
+        .d3-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .d3-tooltip.visible { opacity: 1; }
+        .d3-tooltip-owner { font-weight: bold; margin-bottom: 6px; font-size: 14px; }
+        .d3-tooltip-row { margin: 3px 0; display: flex; align-items: center; gap: 8px; }
+        .d3-tooltip-color { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+        .ownership-chart-container { position: relative; width: 100%; overflow-x: auto; }
+        .axis text { font-size: 12px; fill: #666; }
+        .axis line, .axis path { stroke: #e0e0e0; }
+        .grid line { stroke: #e0e0e0; stroke-dasharray: 3,3; }
+        .bar { cursor: pointer; transition: opacity 0.2s; }
+        .bar:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -147,12 +173,25 @@ struct HTMLReporter {
             </div>
         </div>
         
-        <!-- Ownership Tab (Placeholder) -->
+        <!-- Ownership Tab -->
         <div id="ownership" class="tab-content">
-            <div class="summary">
-                <div class="summary-card">
-                    <h3>Coming Soon</h3>
-                    <p>Ownership breakdown will be available in a future update.</p>
+            <div style="padding: 30px; background: white;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 10px;">Ownership overview</h2>
+                <p style="color: #666; font-size: 14px; margin-bottom: 30px;">Shows how much of the overall app size is owned by each owner.</p>
+                <div class="ownership-chart-container">
+                    <div id="ownershipChart"></div>
+                </div>
+            </div>
+            <div style="padding: 30px; background: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">Components and files grouped by owner</h2>
+                <select id="ownerDropdown" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer;">
+                    <option value="">Select an owner...</option>
+                </select>
+            </div>
+            <div id="ownerDetailSection" style="display: none;">
+                <div id="ownerDetailSummary" style="padding: 30px; background: white; border-top: 1px solid #e0e0e0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px;"></div>
+                <div style="padding: 0 30px 30px 30px; background: white;">
+                    <div class="modules-grid" id="ownerModulesGrid"></div>
                 </div>
             </div>
         </div>
@@ -216,7 +255,22 @@ struct HTMLReporter {
         }
         
         function calculateModuleTotal(module) {
-            return module.proguard || 0;
+            let total = 0;
+            
+            // Add binary size
+            total += module.binarySize || 0;
+            
+            // Add image file size
+            total += module.imageFileSize || 0;
+            
+            // Add all resource sizes
+            if (module.resources) {
+                Object.values(module.resources).forEach(res => {
+                    total += res.size || 0;
+                });
+            }
+            
+            return total;
         }
         
         function renderSummary() {
@@ -399,9 +453,425 @@ struct HTMLReporter {
             renderModules(document.getElementById('searchInput').value, e.target.value);
         });
         
+        // Ownership Tab Functions
+        let ownershipData = [];
+        
+        function prepareOwnershipData() {
+            if (!data.modulesByOwner || Object.keys(data.modulesByOwner).length === 0) {
+                return [];
+            }
+            
+            return Object.entries(data.modulesByOwner).map(([ownerName, modules]) => {
+                const moduleList = Object.values(modules);
+                const totalBinarySize = moduleList.reduce((sum, m) => sum + (m.binarySize || 0), 0);
+                const totalInstallSize = moduleList.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
+                const totalFiles = moduleList.reduce((sum, m) => sum + (m.files ? m.files.length : 0), 0);
+                
+                return {
+                    name: ownerName,
+                    modules: modules,
+                    moduleCount: moduleList.length,
+                    fileCount: totalFiles,
+                    totalBinarySize: totalBinarySize,
+                    totalInstallSize: totalInstallSize
+                };
+            }).sort((a, b) => b.totalBinarySize - a.totalBinarySize);
+        }
+        
+        function renderOwnershipChart() {
+            const chartContainer = document.getElementById('ownershipChart');
+            
+            if (ownershipData.length === 0) {
+                chartContainer.innerHTML = `
+                    <div class="no-results">
+                        <p>No ownership data available.</p>
+                        <p style="font-size: 14px; margin-top: 10px; color: #666;">Run Caliper with the --ownership-file option to enable ownership tracking.</p>
+                    </div>
+                `;
+                document.getElementById('ownerDropdown').disabled = true;
+                return;
+            }
+            
+            // Clear any existing chart
+            chartContainer.innerHTML = '';
+            
+            // Chart dimensions
+            const margin = { top: 20, right: 30, bottom: 120, left: 80 };
+            const barWidth = 40;
+            const barGap = 10;
+            const groupGap = 30;
+            const groupWidth = (barWidth * 2) + barGap;
+            const width = ownershipData.length * (groupWidth + groupGap) + margin.left + margin.right;
+            const height = 450;
+            const chartHeight = height - margin.top - margin.bottom;
+            
+            // Calculate totals for percentages
+            const totalBinarySize = ownershipData.reduce((sum, d) => sum + d.totalBinarySize, 0);
+            const totalInstallSize = ownershipData.reduce((sum, d) => sum + d.totalInstallSize, 0);
+            
+            // Create tooltip
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'd3-tooltip');
+            
+            // Create SVG
+            const svg = d3.select('#ownershipChart')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .style('display', 'block')
+                .style('margin', '0 auto');
+            
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // Scales
+            const x = d3.scaleBand()
+                .domain(ownershipData.map(d => d.name))
+                .range([0, width - margin.left - margin.right])
+                .padding(0.3);
+            
+            const maxSize = d3.max(ownershipData, d => Math.max(d.totalBinarySize, d.totalInstallSize));
+            const y = d3.scaleLinear()
+                .domain([0, maxSize])
+                .nice()
+                .range([chartHeight, 0]);
+            
+            // Grid lines
+            g.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width + margin.left + margin.right)
+                    .tickFormat('')
+                );
+            
+            // Y axis with formatted bytes
+            const yAxis = g.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y)
+                    .tickFormat(d => formatBytes(d))
+                    .ticks(5)
+                );
+            
+            // X axis
+            const xAxis = g.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${chartHeight})`)
+                .call(d3.axisBottom(x));
+            
+            // Rotate x-axis labels for better readability with long text
+            xAxis.selectAll('text')
+                .attr('transform', 'rotate(-55)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-0.5em')
+                .attr('dy', '0.5em')
+                .style('font-size', '11px');
+            
+            // Create groups for each owner
+            const ownerGroups = g.selectAll('.owner-group')
+                .data(ownershipData)
+                .enter()
+                .append('g')
+                .attr('class', 'owner-group')
+                .attr('transform', d => `translate(${x(d.name)},0)`);
+            
+            // Download size bars (blue)
+            ownerGroups.append('rect')
+                .attr('class', 'bar download-bar')
+                .attr('x', 0)
+                .attr('width', barWidth)
+                .attr('y', chartHeight)
+                .attr('height', 0)
+                .attr('fill', '#063773')
+                .attr('rx', 3)
+                .on('mouseover', function(event, d) {
+                    d3.select(this).style('opacity', 0.7);
+                    const percentage = totalBinarySize > 0 ? ((d.totalBinarySize / totalBinarySize) * 100).toFixed(1) : 0;
+                    tooltip.html(`
+                        <div class="d3-tooltip-owner">${escapeHtml(d.name)}</div>
+                        <div class="d3-tooltip-row">
+                            <span class="d3-tooltip-color" style="background: #063773;"></span>
+                            <span>Download: ${formatBytes(d.totalBinarySize)} (${percentage}%)</span>
+                        </div>
+                        <div class="d3-tooltip-row">
+                            <span>${d.moduleCount} module(s)</span>
+                        </div>
+                    `)
+                    .classed('visible', true)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('opacity', 1);
+                    tooltip.classed('visible', false);
+                })
+                .on('click', function(event, d) {
+                    const index = ownershipData.indexOf(d);
+                    document.getElementById('ownerDropdown').value = index;
+                    renderOwnerDetails(index);
+                    // Scroll to details
+                    document.getElementById('ownerDetailSection').scrollIntoView({ behavior: 'smooth' });
+                })
+                .transition()
+                .duration(800)
+                .ease(d3.easeCubicOut)
+                .attr('y', d => y(d.totalBinarySize))
+                .attr('height', d => chartHeight - y(d.totalBinarySize));
+            
+            // Install size bars (green)
+            ownerGroups.append('rect')
+                .attr('class', 'bar install-bar')
+                .attr('x', barWidth + barGap)
+                .attr('width', barWidth)
+                .attr('y', chartHeight)
+                .attr('height', 0)
+                .attr('fill', '#2ecc71')
+                .attr('rx', 3)
+                .on('mouseover', function(event, d) {
+                    d3.select(this).style('opacity', 0.7);
+                    const percentage = totalInstallSize > 0 ? ((d.totalInstallSize / totalInstallSize) * 100).toFixed(1) : 0;
+                    tooltip.html(`
+                        <div class="d3-tooltip-owner">${escapeHtml(d.name)}</div>
+                        <div class="d3-tooltip-row">
+                            <span class="d3-tooltip-color" style="background: #2ecc71;"></span>
+                            <span>Install: ${formatBytes(d.totalInstallSize)} (${percentage}%)</span>
+                        </div>
+                        <div class="d3-tooltip-row">
+                            <span>${d.moduleCount} module(s), ${d.fileCount} file(s)</span>
+                        </div>
+                    `)
+                    .classed('visible', true)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('opacity', 1);
+                    tooltip.classed('visible', false);
+                })
+                .on('click', function(event, d) {
+                    const index = ownershipData.indexOf(d);
+                    document.getElementById('ownerDropdown').value = index;
+                    renderOwnerDetails(index);
+                    // Scroll to details
+                    document.getElementById('ownerDetailSection').scrollIntoView({ behavior: 'smooth' });
+                })
+                .transition()
+                .duration(800)
+                .ease(d3.easeCubicOut)
+                .delay(100)
+                .attr('y', d => y(d.totalInstallSize))
+                .attr('height', d => chartHeight - y(d.totalInstallSize));
+            
+            // Legend
+            const legend = svg.append('g')
+                .attr('transform', `translate(${width / 2 - 100},${height - 25})`);
+            
+            // Download legend
+            legend.append('rect')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('width', 20)
+                .attr('height', 12)
+                .attr('fill', '#063773')
+                .attr('rx', 2);
+            
+            legend.append('text')
+                .attr('x', 25)
+                .attr('y', 10)
+                .style('font-size', '12px')
+                .style('fill', '#333')
+                .text('Download size');
+            
+            // Install legend
+            legend.append('rect')
+                .attr('x', 130)
+                .attr('y', 0)
+                .attr('width', 20)
+                .attr('height', 12)
+                .attr('fill', '#2ecc71')
+                .attr('rx', 2);
+            
+            legend.append('text')
+                .attr('x', 155)
+                .attr('y', 10)
+                .style('font-size', '12px')
+                .style('fill', '#333')
+                .text('Install size');
+        }
+        
+        function populateOwnerDropdown() {
+            const dropdown = document.getElementById('ownerDropdown');
+            
+            if (ownershipData.length === 0) {
+                dropdown.disabled = true;
+                return;
+            }
+            
+            dropdown.innerHTML = '<option value="">Select an owner...</option>';
+            ownershipData.forEach((owner, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = owner.name;
+                dropdown.appendChild(option);
+            });
+        }
+        
+        function renderOwnerDetails(ownerIndex) {
+            const detailSection = document.getElementById('ownerDetailSection');
+            
+            if (ownerIndex === '') {
+                detailSection.style.display = 'none';
+                return;
+            }
+            
+            const owner = ownershipData[ownerIndex];
+            detailSection.style.display = 'block';
+            
+            // Render summary
+            const summaryDiv = document.getElementById('ownerDetailSummary');
+            summaryDiv.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 36px; font-weight: bold; color: #333;">${owner.moduleCount}</div>
+                    <div style="font-size: 14px; color: #666; margin-top: 5px;">Component(s)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 36px; font-weight: bold; color: #333;">${owner.fileCount}</div>
+                    <div style="font-size: 14px; color: #666; margin-top: 5px;">File(s)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 36px; font-weight: bold; color: #063773;">${formatBytes(owner.totalBinarySize)}</div>
+                    <div style="font-size: 14px; color: #666; margin-top: 5px;">Download size</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 36px; font-weight: bold; color: #2ecc71;">${formatBytes(owner.totalInstallSize)}</div>
+                    <div style="font-size: 14px; color: #666; margin-top: 5px;">Install size</div>
+                </div>
+            `;
+            
+            // Render modules
+            const modulesGrid = document.getElementById('ownerModulesGrid');
+            const modules = Object.entries(owner.modules).sort((a, b) => {
+                return (b[1].binarySize || 0) - (a[1].binarySize || 0);
+            });
+            
+            const maxModuleSize = Math.max(...modules.map(([_, m]) => calculateModuleTotal(m)));
+            
+            modulesGrid.innerHTML = modules.map(([moduleName, module], index) => {
+                const totalSize = calculateModuleTotal(module);
+                const binaryPercent = maxModuleSize > 0 ? (module.binarySize || 0) / maxModuleSize * 100 : 0;
+                const imagePercent = maxModuleSize > 0 ? (module.imageFileSize || 0) / maxModuleSize * 100 : 0;
+                
+                // Resources section
+                const resourcesHTML = Object.keys(module.resources || {}).length > 0 ? `
+                    <h4 style="margin-top: 20px; margin-bottom: 15px; color: #333;">Resources</h4>
+                    <div class="resources-grid">
+                        ${Object.entries(module.resources).map(([type, res]) => `
+                            <div class="resource-card">
+                                <div class="resource-type">${type}</div>
+                                <div class="resource-size">${formatBytes(res.size)}</div>
+                                <div class="resource-count">${res.count} files</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '';
+                
+                // Top files from asset catalog
+                const topFiles = Object.entries(module.top || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                const topFilesHTML = topFiles.length > 0 ? `
+                    <div class="top-files">
+                        <h4>Top 10 Largest Asset Files</h4>
+                        ${topFiles.map(([path, size]) => `<div class="file-item"><span class="file-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`).join('')}
+                    </div>
+                ` : '';
+                
+                // Source files from LinkMap
+                const sourceFiles = module.files || [];
+                const filesHTML = sourceFiles.length > 0 ? `
+                    <div class="files-section">
+                        <h4>
+                            Source Files
+                            <span class="count-badge">${sourceFiles.length}</span>
+                        </h4>
+                        <div class="files-table">
+                            <div class="files-table-header">
+                                <div>File Name</div>
+                                <div>Size</div>
+                            </div>
+                            ${sourceFiles.map(file => `<div class="file-row"><div class="file-name" title="${escapeHtml(file.fileName)}">${escapeHtml(file.fileName)}</div><div class="file-size">${formatBytes(file.size)}</div></div>`).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                
+                return `
+                    <div class="module-card">
+                        <div class="module-header" onclick="toggleOwnerModule(${ownerIndex}, ${index})">
+                            <div class="module-info">
+                                <div class="module-name-row">
+                                    ${moduleName}
+                                    ${module.version ? `<span class="module-version">:${module.version}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="module-stats">
+                                <div class="module-stat">
+                                    <span class="module-stat-label">Download</span>
+                                    <span class="module-size">${formatBytes(module.binarySize || 0)}</span>
+                                </div>
+                                <span class="expand-icon" id="owner-module-icon-${ownerIndex}-${index}">▼</span>
+                            </div>
+                        </div>
+                        <div class="module-details" id="owner-module-${ownerIndex}-${index}">
+                            <div class="size-bars">
+                                <div class="size-bar">
+                                    <div class="size-bar-label">
+                                        <span class="name">Binary Size</span>
+                                        <span class="value">${formatBytes(module.binarySize || 0)}</span>
+                                    </div>
+                                    <div class="size-bar-fill">
+                                        <div class="size-bar-progress" style="width: ${binaryPercent}%"></div>
+                                    </div>
+                                </div>
+                                <div class="size-bar">
+                                    <div class="size-bar-label">
+                                        <span class="name">Image Assets</span>
+                                        <span class="value">${formatBytes(module.imageFileSize || 0)}</span>
+                                    </div>
+                                    <div class="size-bar-fill">
+                                        <div class="size-bar-progress" style="width: ${imagePercent}%"></div>
+                                    </div>
+                                </div>
+                                <div class="size-bar">
+                                    <div class="size-bar-label">
+                                        <span class="name">Total (Install Size)</span>
+                                        <span class="value">${formatBytes(totalSize)}</span>
+                                    </div>
+                                    <div class="size-bar-fill">
+                                        <div class="size-bar-progress" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            ${resourcesHTML}
+                            ${topFilesHTML}
+                            ${filesHTML}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function toggleOwnerModule(ownerIndex, moduleIndex) {
+            document.getElementById(`owner-module-${ownerIndex}-${moduleIndex}`).classList.toggle('open');
+            document.getElementById(`owner-module-icon-${ownerIndex}-${moduleIndex}`).classList.toggle('open');
+        }
+        
+        document.getElementById('ownerDropdown').addEventListener('change', (e) => {
+            renderOwnerDetails(e.target.value);
+        });
+        
         updateHeader();
         renderSummary();
         renderModules();
+        ownershipData = prepareOwnershipData();
+        renderOwnershipChart();
+        populateOwnerDropdown();
     </script>
 </body>
 </html>
