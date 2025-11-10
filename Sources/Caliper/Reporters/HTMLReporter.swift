@@ -48,7 +48,9 @@ struct HTMLReporter {
         .module-header { padding: 20px; background: #fafafa; border-bottom: 1px solid #e0e0e0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .module-header:hover { background: #f0f0f0; }
         .module-title { font-size: 18px; font-weight: 600; color: #333; }
-        .module-owner { font-size: 12px; color: #666; margin-top: 4px; }
+        .module-version { font-size: 14px; color: #667eea; font-weight: 500; margin-left: 8px; }
+        .module-meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+        .owner-badge { display: inline-block; padding: 4px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
         .module-size { font-size: 16px; color: #667eea; font-weight: bold; }
         .module-details { padding: 20px; display: none; }
         .module-details.open { display: block; }
@@ -176,8 +178,11 @@ struct HTMLReporter {
                     <div class="module-card">
                         <div class="module-header" onclick="toggleModule(${index})">
                             <div>
-                                <div class="module-title">${module.name}</div>
-                                ${module.owner ? `<div class="module-owner">Owner: ${module.owner}</div>` : ''}
+                                <div>
+                                    <span class="module-title">${module.name}</span>
+                                    ${module.version ? `<span class="module-version">:${module.version}</span>` : ''}
+                                </div>
+                                ${module.owner ? `<div class="module-meta"><span class="owner-badge">${module.owner}</span></div>` : ''}
                             </div>
                             <div style="text-align: right;">
                                 <div class="module-size">${formatBytes(totalSize)}</div>

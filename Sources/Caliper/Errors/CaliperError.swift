@@ -6,6 +6,8 @@ enum CaliperError: Error {
     case invalidIPA
     case invalidOwnershipFile
     case invalidOutput
+    case fileNotFound(String)
+    case parseError(String)
     case linkMapParsingFailed(String)
     case assetCatalogParsingFailed(String)
 }
@@ -21,6 +23,10 @@ extension CaliperError: LocalizedError {
             return "Invalid ownership configuration file"
         case .invalidOutput:
             return "Failed to generate output"
+        case .fileNotFound(let path):
+            return "File not found: \(path)"
+        case .parseError(let reason):
+            return "Parse error: \(reason)"
         case .linkMapParsingFailed(let reason):
             return "Failed to parse LinkMap: \(reason)"
         case .assetCatalogParsingFailed(let reason):

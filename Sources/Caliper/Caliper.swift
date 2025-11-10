@@ -17,15 +17,20 @@ struct Caliper: ParsableCommand {
     @Option(name: .long, help: "Optional YAML file containing module ownership configuration")
     var ownershipFile: String?
     
+    @Option(name: .long, help: "Optional path to Package.resolved file for Swift package version information")
+    var packageResolvedPath: String?
+    
     // MARK: - Main Execution
     
     func run() throws {
         // Initialize services
         let ipaService = IPAService()
         let ownershipService = OwnershipService()
+        let versionService = VersionService()
         let sizeCalculator = SizeCalculator()
         let ipaParser = IPAParser()
         let linkMapParser = LinkMapParser()
+        let packageResolvedParser = PackageResolvedParser()
         let jsonReporter = JSONReporter()
         let htmlReporter = HTMLReporter()
         
@@ -86,6 +91,13 @@ struct Caliper: ParsableCommand {
             ipaPath: ipaPath,
             unzippedPath: unzippedPath
         )
+        
+        // Parse Package.resolved if provided
+        if let packageResolvedPath = packageResolvedPath {
+            ProgressReporter.section("📦 Parsing Package.resolved file...")
+            let versionMapping = try packageResolvedParser.parse(path: packageResolvedPath)
+            versionService.assignVersions(to: appSizeReport, using: versionMapping)
+        }
         
         // Assign owners to modules
         if !ownershipEntries.isEmpty {

@@ -21,6 +21,13 @@ swift build -c release
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
   --ownership-file module-ownership.yml
+
+# With Swift package version information
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml \
+  --package-resolved-path Package.resolved
 ```
 
 Reports are always saved to `report.json` and `report.html` in the current directory.
@@ -72,10 +79,24 @@ Track module ownership with a YAML file:
   --ownership-file module-ownership.yml
 ```
 
+### Swift Package Versions
+
+Include Swift package version information from `Package.resolved`:
+
+```bash
+# Analyze with package version tracking
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --package-resolved-path Package.resolved
+```
+
+This will add version information to each module in the output, making it easier to track which versions of dependencies are included in your build.
+
 ## Command Line Options
 
 ```
-USAGE: caliper --ipa-path <ipa-path> [--link-map-path <link-map-path>] [--ownership-file <ownership-file>]
+USAGE: caliper --ipa-path <ipa-path> [--link-map-path <link-map-path>] [--ownership-file <ownership-file>] [--package-resolved-path <package-resolved-path>]
 
 OPTIONS:
   --ipa-path <ipa-path>   Path to the IPA file
@@ -83,6 +104,8 @@ OPTIONS:
                           Optional path to LinkMap file for accurate binary sizes
   --ownership-file <ownership-file>
                           Optional YAML file containing module ownership configuration
+  --package-resolved-path <package-resolved-path>
+                          Optional path to Package.resolved file for Swift package version information
 ```
 
 ## HTML Reports
@@ -105,6 +128,8 @@ JSON structure:
   "modules": {
     "ModuleName": {
       "name": "ModuleName",
+      "owner": "team-alpha",
+      "version": "1.2.3",
       "binarySize": 1234567,
       "imageSize": 234567,
       "imageFileSize": 345678,
@@ -123,6 +148,9 @@ JSON structure:
 ```
 
 Fields:
+- `name` - Module/framework name
+- `owner` - Team/owner (if ownership file provided)
+- `version` - Package version (if Package.resolved provided)
 - `binarySize` - Compiled binary code size (bytes)
 - `imageSize` - Compressed image assets (bytes)
 - `imageFileSize` - Uncompressed image assets (bytes)
@@ -183,6 +211,7 @@ stage('App Size Analysis') {
 - Asset catalog (.car files) analysis
 - Interactive HTML reports
 - Module ownership tracking
+- Swift package version tracking from Package.resolved
 - Automatic IPA handling (unzip/cleanup)
 - Clean, modular architecture for easy maintenance and extension
 
