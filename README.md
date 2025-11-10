@@ -28,6 +28,14 @@ swift build -c release
   --link-map-path MyApp-LinkMap.txt \
   --ownership-file module-ownership.yml \
   --package-resolved-path Package.resolved
+
+# With package name mapping (for namespaced packages)
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --ownership-file module-ownership.yml \
+  --package-resolved-path Package.resolved \
+  --package-mapping-file package-name-mapping.yml
 ```
 
 Reports are always saved to `report.json` and `report.html` in the current directory.
@@ -93,10 +101,34 @@ Include Swift package version information from `Package.resolved`:
 
 This will add version information to each module in the output, making it easier to track which versions of dependencies are included in your build.
 
+### Package Name Mapping
+
+For handling namespaced packages in `Package.resolved` (e.g., in-house packages like `ext.adjust_signature_sdk`), you can provide a mapping file:
+
+```yaml
+# package-name-mapping.yml
+- moduleName: adjust_signature_sdk
+  packageIdentity: ext.adjust_signature_sdk
+
+- moduleName: AdjustSignatureSDK
+  packageIdentity: ext.adjust_signature_sdk
+```
+
+```bash
+# Analyze with package name mapping
+.build/release/Caliper \
+  --ipa-path MyApp.ipa \
+  --link-map-path MyApp-LinkMap.txt \
+  --package-resolved-path Package.resolved \
+  --package-mapping-file package-name-mapping.yml
+```
+
+This ensures that modules are correctly matched to their namespaced package identities when resolving version information.
+
 ## Command Line Options
 
 ```
-USAGE: caliper --ipa-path <ipa-path> [--link-map-path <link-map-path>] [--ownership-file <ownership-file>] [--package-resolved-path <package-resolved-path>]
+USAGE: caliper --ipa-path <ipa-path> [--link-map-path <link-map-path>] [--ownership-file <ownership-file>] [--package-resolved-path <package-resolved-path>] [--package-mapping-file <package-mapping-file>]
 
 OPTIONS:
   --ipa-path <ipa-path>   Path to the IPA file
@@ -106,6 +138,8 @@ OPTIONS:
                           Optional YAML file containing module ownership configuration
   --package-resolved-path <package-resolved-path>
                           Optional path to Package.resolved file for Swift package version information
+  --package-mapping-file <package-mapping-file>
+                          Optional YAML file containing package name mappings (for handling namespaced packages)
 ```
 
 ## HTML Reports
@@ -212,6 +246,7 @@ stage('App Size Analysis') {
 - Interactive HTML reports
 - Module ownership tracking
 - Swift package version tracking from Package.resolved
+- Package name mapping support for namespaced packages
 - Automatic IPA handling (unzip/cleanup)
 - Clean, modular architecture for easy maintenance and extension
 

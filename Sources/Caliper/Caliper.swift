@@ -20,6 +20,9 @@ struct Caliper: ParsableCommand {
     @Option(name: .long, help: "Optional path to Package.resolved file for Swift package version information")
     var packageResolvedPath: String?
     
+    @Option(name: .long, help: "Optional YAML file containing package name mappings (for handling namespaced packages)")
+    var packageMappingFile: String?
+    
     // MARK: - Main Execution
     
     func run() throws {
@@ -27,6 +30,7 @@ struct Caliper: ParsableCommand {
         let ipaService = IPAService()
         let ownershipService = OwnershipService()
         let versionService = VersionService()
+        let packageMappingService = PackageMappingService()
         let sizeCalculator = SizeCalculator()
         let ipaParser = IPAParser()
         let linkMapParser = LinkMapParser()
@@ -96,7 +100,20 @@ struct Caliper: ParsableCommand {
         if let packageResolvedPath = packageResolvedPath {
             ProgressReporter.section("📦 Parsing Package.resolved file...")
             let versionMapping = try packageResolvedParser.parse(path: packageResolvedPath)
-            versionService.assignVersions(to: appSizeReport, using: versionMapping)
+            
+            // Load package name mapping if provided
+            var packageNameMapping: [String: String]? = nil
+            if let mappingPath = packageMappingFile {
+                ProgressReporter.section("🔗 Loading package name mappings...")
+                let mappings = try packageMappingService.loadMappingFile(from: mappingPath)
+                packageNameMapping = packageMappingService.buildMappingDictionary(from: mappings)
+            }
+            
+            versionService.assignVersions(
+                to: appSizeReport,
+                using: versionMapping,
+                packageNameMapping: packageNameMapping
+            )
         }
         
         // Assign owners to modules

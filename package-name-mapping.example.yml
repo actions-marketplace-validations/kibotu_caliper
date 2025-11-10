@@ -1,0 +1,19 @@
+# Package Name Mapping Configuration
+#
+# This file maps module names to their package identities as they appear in Package.resolved
+# This is particularly useful for handling namespaced packages (e.g., "ext.something")
+#
+# Format:
+# - moduleName: The name of the module as it appears in LinkMap or binary
+#   packageIdentity: The full package identity from Package.resolved (including namespace)
+
+- moduleName: adjust_signature_sdk
+  packageIdentity: ext.adjust_signature_sdk
+
+- moduleName: AdjustSignatureSDK
+  packageIdentity: ext.adjust_signature_sdk
+
+# Add more mappings as needed
+# - moduleName: MyCustomModule
+#   packageIdentity: ext.mycustommodule
+
