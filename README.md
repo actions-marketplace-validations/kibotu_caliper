@@ -1,4 +1,4 @@
-# Caliper
+# Caliper [![Build](https://github.com/kibotu/caliper/actions/workflows/build.yml/badge.svg)](https://github.com/kibotu/caliper/actions/workflows/build.yml)
 
 A Swift command-line tool for measuring binary and bundle sizes in iOS IPA files.
 
