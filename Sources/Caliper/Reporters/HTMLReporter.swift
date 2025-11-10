@@ -45,16 +45,15 @@ struct HTMLReporter {
         .modules-grid { padding: 30px; }
         .module-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 16px; overflow: hidden; transition: all 0.2s ease; }
         .module-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #667eea; }
-        .module-header { padding: 20px 24px; background: #fafafa; border-bottom: 1px solid #e0e0e0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 20px; transition: background 0.15s ease; }
+        .module-header { padding: 18px 24px; background: #fafafa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; transition: background 0.15s ease; }
         .module-header:hover { background: #f5f6fa; }
-        .module-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .module-name-row { display: flex; align-items: baseline; gap: 6px; }
-        .module-title { font-size: 16px; font-weight: 600; color: #2d3748; letter-spacing: -0.01em; }
-        .module-version { font-size: 13px; color: #667eea; font-weight: 600; background: #e8eaf6; padding: 2px 8px; border-radius: 6px; }
-        .owner-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2); }
-        .module-stats { display: flex; align-items: center; gap: 20px; }
-        .module-size { font-size: 18px; color: #667eea; font-weight: 700; }
-        .expand-icon { color: #667eea; font-size: 12px; }
+        .module-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+        .module-name-row { font-size: 16px; font-weight: 600; color: #2d3748; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .module-version { color: #667eea; }
+        .owner-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2); flex-shrink: 0; }
+        .module-stats { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .module-size { font-size: 16px; color: #667eea; font-weight: 700; white-space: nowrap; }
+        .expand-icon { color: #667eea; font-size: 12px; transition: transform 0.2s; }
         .module-details { padding: 20px; display: none; }
         .module-details.open { display: block; }
         .size-bars { margin-bottom: 30px; }
@@ -181,14 +180,11 @@ struct HTMLReporter {
                     <div class="module-card">
                         <div class="module-header" onclick="toggleModule(${index})">
                             <div class="module-info">
-                                <div class="module-name-row">
-                                    <span class="module-title">${module.name}</span>
-                                    ${module.version ? `<span class="module-version">${module.version}</span>` : ''}
-                                </div>
+                                <div class="module-name-row">${module.name}${module.version ? `<span class="module-version">:${module.version}</span>` : ''}</div>
                                 ${module.owner ? `<span class="owner-badge">${module.owner}</span>` : ''}
                             </div>
                             <div class="module-stats">
-                                <div class="module-size">${formatBytes(totalSize)}</div>
+                                <span class="module-size">${formatBytes(totalSize)}</span>
                                 <span class="expand-icon" id="icon-${index}">▼</span>
                             </div>
                         </div>
