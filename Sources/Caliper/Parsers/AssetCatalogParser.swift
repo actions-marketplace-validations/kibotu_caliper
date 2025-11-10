@@ -1,0 +1,113 @@
+import Foundation
+
+/// Parser for .car asset catalog files
+struct AssetCatalogParser {
+    
+    /// Parse an asset catalog file and add the results to the module
+    func parse(filePath: String, moduleSize: ModuleSize) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = ["--sdk", "iphoneos", "assetutil", "--info", filePath]
+        
+        let pipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = errorPipe
+        
+        // Accumulate output data asynchronously to prevent buffer blocking
+        var outputData = Data()
+        var errorData = Data()
+        
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let availableData = handle.availableData
+            if !availableData.isEmpty {
+                outputData.append(availableData)
+            }
+        }
+        
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let availableData = handle.availableData
+            if !availableData.isEmpty {
+                errorData.append(availableData)
+            }
+        }
+        
+        do {
+            try process.run()
+        } catch {
+            throw CaliperError.assetCatalogParsingFailed("Failed to start assetutil: \(error)")
+        }
+        
+        // Wait with timeout
+        let timeout: TimeInterval = 10.0
+        let startTime = Date()
+        
+        while process.isRunning && Date().timeIntervalSince(startTime) < timeout {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        
+        // Clean up handlers
+        pipe.fileHandleForReading.readabilityHandler = nil
+        errorPipe.fileHandleForReading.readabilityHandler = nil
+        
+        // Terminate if still running
+        if process.isRunning {
+            process.terminate()
+            Thread.sleep(forTimeInterval: 0.2)
+            throw CaliperError.assetCatalogParsingFailed("assetutil timed out after \(Int(timeout))s")
+        }
+        
+        // Check exit code
+        guard process.terminationStatus == 0 else {
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            throw CaliperError.assetCatalogParsingFailed("assetutil failed (exit: \(process.terminationStatus)): \(errorOutput)")
+        }
+        
+        guard let output = String(data: outputData, encoding: .utf8) else {
+            throw CaliperError.assetCatalogParsingFailed("Failed to decode assetutil output")
+        }
+        
+        try parseAssetOutput(output, moduleSize: moduleSize)
+    }
+    
+    // MARK: - Private Methods
+    
+    private func parseAssetOutput(_ output: String, moduleSize: ModuleSize) throws {
+        // Drop first line (header) and parse JSON array
+        let lines = output.components(separatedBy: .newlines)
+        guard lines.count > 1 else { return }
+        
+        let jsonString = "[" + lines.dropFirst().joined(separator: " ")
+        guard let jsonData = jsonString.data(using: .utf8) else { return }
+        
+        let assets = try JSONDecoder().decode([AssetInfo].self, from: jsonData)
+        
+        for asset in assets {
+            guard let name = asset.RenditionName,
+                  let sizeOnDisk = asset.SizeOnDisk else {
+                continue
+            }
+            
+            let size = Int64(sizeOnDisk)
+            let components = name.split(separator: ".")
+            guard let ext = components.last else { continue }
+            let fileExtension = String(ext).lowercased()
+            
+            switch fileExtension {
+            case "svg", "png", "pdf":
+                moduleSize.imageSize += size
+                moduleSize.imageFileSize += size
+                moduleSize.addResource(type: fileExtension, size: size)
+                moduleSize.addToTop(file: name, size: size)
+                
+            case "0-gamut0", "1-gamut0":
+                moduleSize.addResource(type: fileExtension, size: size)
+                moduleSize.addToTop(file: name, size: size)
+                
+            default:
+                break
+            }
+        }
+    }
+}
+

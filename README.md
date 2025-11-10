@@ -193,6 +193,23 @@ stage('App Size Analysis') {
 - Interactive HTML reports
 - Module ownership tracking
 - Automatic IPA handling (unzip/cleanup)
+- Clean, modular architecture for easy maintenance and extension
+
+## Architecture
+
+Caliper follows a clean, modular architecture with clear separation of concerns:
+
+```
+Sources/Caliper/
+├── Models/         # Data structures
+├── Services/       # Business logic
+├── Parsers/        # File parsing
+├── Reporters/      # Output generation
+├── Utilities/      # Helper functions
+└── Errors/         # Error types
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation on the project structure, design patterns, and extension points.
 
 ## Requirements
 
