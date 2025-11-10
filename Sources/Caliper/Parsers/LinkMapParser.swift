@@ -1,5 +1,14 @@
 import Foundation
 
+/// Function signature for swift_demangle
+typealias SwiftDemangle = @convention(c) (
+    _ mangledName: UnsafePointer<CChar>?,
+    _ mangledNameLength: Int,
+    _ outputBuffer: UnsafeMutablePointer<CChar>?,
+    _ outputBufferSize: UnsafeMutablePointer<Int>?,
+    _ flags: UInt32
+) -> UnsafeMutablePointer<CChar>?
+
 /// Structure to hold file information from LinkMap
 struct FileInfo {
     let fileName: String
@@ -14,6 +23,16 @@ struct LinkMapDetails {
 
 /// Parser for LinkMap files to extract module sizes
 struct LinkMapParser {
+    /// Lazy-loaded swift_demangle function
+    private static let demangleFunction: SwiftDemangle? = {
+        guard let handle = dlopen(nil, RTLD_NOW) else {
+            return nil
+        }
+        guard let symbol = dlsym(handle, "swift_demangle") else {
+            return nil
+        }
+        return unsafeBitCast(symbol, to: SwiftDemangle.self)
+    }()
     
     /// Parse a LinkMap file and return module sizes
     func parse(linkMapPath: String) throws -> [String: Int64] {
@@ -205,27 +224,28 @@ struct LinkMapParser {
         return nil
     }
     
-    /// Demangle Swift symbol using swift-demangle or stdlib
+    /// Demangle Swift symbol using runtime swift_demangle function
     private func demangleSwiftSymbol(_ symbol: String) -> String? {
-        // Use stdlib's _stdlib_demangleName if available
-        let demangled = _stdlib_demangleImpl(
-            mangledName: symbol,
-            mangledNameLength: UInt(symbol.utf8.count),
-            outputBuffer: nil,
-            outputBufferSize: nil,
-            flags: 0
-        )
+        guard let demangle = Self.demangleFunction else {
+            return nil
+        }
         
-        if let cString = demangled {
-            defer { free(UnsafeMutableRawPointer(mutating: cString)) }
-            let demangledString = String(cString: cString)
+        return symbol.withCString { cString in
+            var size: Int = 0
+            let length = strlen(cString)
+            let result = demangle(cString, length, nil, &size, 0)
+            
+            guard let demangledPtr = result else {
+                return nil
+            }
+            
+            defer { free(demangledPtr) }
+            let demangledString = String(cString: demangledPtr)
             
             // Extract class name from demangled string
             // Format: "ModuleName.ClassName.methodName(...)" or similar
             return extractClassNameFromDemangled(demangledString)
         }
-        
-        return nil
     }
     
     /// Extract class name from a demangled Swift symbol
@@ -272,16 +292,6 @@ struct LinkMapParser {
         
         return nil
     }
-    
-    /// Swift stdlib demangling function
-    @_silgen_name("swift_demangle")
-    private func _stdlib_demangleImpl(
-        mangledName: UnsafePointer<CChar>?,
-        mangledNameLength: UInt,
-        outputBuffer: UnsafeMutablePointer<CChar>?,
-        outputBufferSize: UnsafeMutablePointer<UInt>?,
-        flags: UInt32
-    ) -> UnsafeMutablePointer<CChar>?
     
     /// Extract class name from Swift mangled symbol
     /// Format: _$s<ModuleNameLength><ModuleName><ClassNameLength><ClassName>...
