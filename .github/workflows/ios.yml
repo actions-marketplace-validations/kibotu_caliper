@@ -56,12 +56,20 @@ jobs:
           echo "✅ Analysis complete!"
           ls -lh report.json report.html
 
+      - name: Prepare GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "📄 Preparing index.html for GitHub Pages..."
+          mkdir -p gh-pages
+          cp Sample/report.html gh-pages/index.html
+          echo "✅ Copied report.html to gh-pages/index.html"
+
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./Sample
+          publish_dir: ./gh-pages
           publish_branch: gh-pages
           destination_dir: .
           keep_files: false
