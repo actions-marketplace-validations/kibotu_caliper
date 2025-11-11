@@ -241,16 +241,17 @@ struct HTMLReporter {
             <!-- Resource Type Breakdown -->
             <div style="padding: 30px; background: white; border-bottom: 1px solid #e0e0e0;">
                 <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">📦 Resource Type Breakdown</h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
-                    <div>
-                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">By Count</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; justify-items: center;">
+                    <div style="width: 100%; max-width: 400px;">
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px; text-align: center;">By Count</h3>
                         <div id="resourceCountChart"></div>
                     </div>
-                    <div>
-                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">By Size</h3>
+                    <div style="width: 100%; max-width: 400px;">
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px; text-align: center;">By Size (Install Size)</h3>
                         <div id="resourceSizeChart"></div>
                     </div>
                 </div>
+                <div id="resourceLegend" style="margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;"></div>
             </div>
             
             <!-- User Impact Score -->
@@ -491,24 +492,22 @@ struct HTMLReporter {
             const internalBinarySize = internalModules.reduce((sum, m) => sum + (m.binarySize || 0), 0);
             const internalInstallSize = internalModules.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
             
+            // Internal download size is the sum of binary sizes for internal modules
+            // (Download size for a module = its binarySize, which is the compressed executable code)
+            const internalDownloadSize = internalBinarySize;
+            
             document.getElementById('summary').innerHTML = `
                 <div class="summary-card">
                     <h3>Download Size</h3>
                     <div class="value">${formatBytes(totalPackageSize)}</div>
                     <div class="label">Compressed IPA</div>
-                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalBinarySize)}</div>` : ''}
+                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalDownloadSize)}</div>` : ''}
                 </div>
                 <div class="summary-card">
                     <h3>Install Size</h3>
                     <div class="value">${formatBytes(totalInstallSize)}</div>
                     <div class="label">Uncompressed</div>
                     ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalInstallSize)}</div>` : ''}
-                </div>
-                <div class="summary-card">
-                    <h3>Binary Size</h3>
-                    <div class="value">${formatBytes(totalBinarySize)}</div>
-                    <div class="label">Executable Code</div>
-                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalBinarySize)}</div>` : ''}
                 </div>
                 <div class="summary-card">
                     <h3>Modules</h3>
@@ -1206,10 +1205,11 @@ struct HTMLReporter {
             });
             const topFiles = allFiles.sort((a, b) => b.size - a.size).slice(0, 20);
             
-            // Top 20 Asset Files across all modules
+            // Top 20 Asset Files across all modules (excluding frameworks)
             const allAssets = [];
             modules.forEach(module => {
-                if (module.top) {
+                // Exclude external modules (frameworks) from asset files
+                if (module.internal === true && module.top) {
                     Object.entries(module.top).forEach(([path, size]) => {
                         allAssets.push({
                             name: path,
@@ -1361,14 +1361,17 @@ struct HTMLReporter {
                 }))
             };
             
-            const width = 1200;
+            // Use container's full width for better fit
+            const containerWidth = container.offsetWidth || 1340;
+            const width = containerWidth;
             const height = 600;
             
             const svg = d3.select('#treemapChart')
                 .append('svg')
                 .attr('width', '100%')
                 .attr('height', height)
-                .attr('viewBox', `0 0 ${width} ${height}`);
+                .attr('viewBox', `0 0 ${width} ${height}`)
+                .attr('preserveAspectRatio', 'xMidYMid meet');
             
             const color = d3.scaleOrdinal()
                 .domain(modules.map(m => m.owner || 'others'))
@@ -1475,25 +1478,33 @@ struct HTMLReporter {
             
             // Add binary as a resource type
             let totalBinarySize = 0;
+            let binaryModuleCount = 0;
             modules.forEach(m => {
-                totalBinarySize += m.binarySize || 0;
+                const binarySize = m.binarySize || 0;
+                if (binarySize > 0) {
+                    totalBinarySize += binarySize;
+                    binaryModuleCount++;
+                }
             });
             if (totalBinarySize > 0) {
-                resourceStats['Binary'] = { size: totalBinarySize, count: modules.length };
+                resourceStats['Binary'] = { size: totalBinarySize, count: binaryModuleCount };
             }
             
             // Add images
             let totalImageSize = 0;
-            let imageCount = 0;
+            let imageFileCount = 0;
             modules.forEach(m => {
                 totalImageSize += m.imageFileSize || 0;
-                if (m.imageFileSize > 0) imageCount++;
+                // Count individual image files from asset catalog
+                if (m.top) {
+                    imageFileCount += Object.keys(m.top).length;
+                }
             });
             if (totalImageSize > 0) {
-                resourceStats['Images'] = { size: totalImageSize, count: imageCount };
+                resourceStats['Images'] = { size: totalImageSize, count: imageFileCount };
             }
             
-            // Add other resources
+            // Add other resources (fonts, PDFs, etc.)
             modules.forEach(module => {
                 Object.entries(module.resources || {}).forEach(([type, res]) => {
                     if (!resourceStats[type]) {
@@ -1510,14 +1521,41 @@ struct HTMLReporter {
                 count: stats.count
             }));
             
-            // Render Count Donut Chart
-            renderDonutChart('resourceCountChart', resourceData, 'count', 'type', 'files');
+            // Calculate the actual total for filtered modules
+            const calculatedTotal = modules.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
+            const resourceTotal = resourceData.reduce((sum, r) => sum + r.size, 0);
             
-            // Render Size Donut Chart
-            renderDonutChart('resourceSizeChart', resourceData, 'size', 'type', 'bytes');
+            // If there's a discrepancy, add an "Other" category to account for it
+            if (calculatedTotal > resourceTotal) {
+                const otherSize = calculatedTotal - resourceTotal;
+                if (otherSize > 0) {
+                    resourceData.push({
+                        type: 'Other',
+                        size: otherSize,
+                        count: 1
+                    });
+                }
+            }
+            
+            // Sort by size descending
+            resourceData.sort((a, b) => b.size - a.size);
+            
+            // Create shared color scale
+            const resourceColorScale = d3.scaleOrdinal()
+                .domain(resourceData.map(d => d.type))
+                .range(d3.schemeSet3);
+            
+            // Render Count Donut Chart (without legend)
+            renderDonutChart('resourceCountChart', resourceData, 'count', 'type', 'files', resourceColorScale, false);
+            
+            // Render Size Donut Chart (without legend)
+            renderDonutChart('resourceSizeChart', resourceData, 'size', 'type', 'bytes', resourceColorScale, false);
+            
+            // Render shared legend below both charts
+            renderResourceLegend(resourceData, resourceColorScale);
         }
         
-        function renderDonutChart(containerId, data, valueKey, labelKey, unit) {
+        function renderDonutChart(containerId, data, valueKey, labelKey, unit, colorScale, showLegend = true) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
             
@@ -1526,18 +1564,27 @@ struct HTMLReporter {
                 return;
             }
             
-            const width = 400;
-            const height = 350;
-            const radius = Math.min(width, height) / 2 - 40;
+            // Create wrapper - simple div for chart only
+            const wrapper = d3.select('#' + containerId)
+                .append('div')
+                .style('display', 'flex')
+                .style('align-items', 'center')
+                .style('justify-content', 'center');
             
-            const svg = d3.select('#' + containerId)
+            const chartWidth = 280;
+            const chartHeight = 280;
+            const radius = Math.min(chartWidth, chartHeight) / 2 - 20;
+            
+            const svg = wrapper
                 .append('svg')
-                .attr('width', width)
-                .attr('height', height)
-                .append('g')
-                .attr('transform', `translate(${width / 2},${height / 2})`);
+                .attr('width', chartWidth)
+                .attr('height', chartHeight);
             
-            const color = d3.scaleOrdinal()
+            const g = svg.append('g')
+                .attr('transform', `translate(${chartWidth / 2},${chartHeight / 2})`);
+            
+            // Use provided color scale or create default
+            const color = colorScale || d3.scaleOrdinal()
                 .domain(data.map(d => d[labelKey]))
                 .range(d3.schemeSet3);
             
@@ -1558,7 +1605,7 @@ struct HTMLReporter {
             
             const total = d3.sum(data, d => d[valueKey]);
             
-            const arcs = svg.selectAll('.arc')
+            const arcs = g.selectAll('.arc')
                 .data(pie(data))
                 .enter()
                 .append('g')
@@ -1603,7 +1650,7 @@ struct HTMLReporter {
                 });
             
             // Center text
-            svg.append('text')
+            g.append('text')
                 .attr('text-anchor', 'middle')
                 .attr('dy', '-0.5em')
                 .style('font-size', '24px')
@@ -1611,12 +1658,50 @@ struct HTMLReporter {
                 .style('fill', '#333')
                 .text(unit === 'bytes' ? formatBytes(total) : total.toLocaleString());
             
-            svg.append('text')
+            g.append('text')
                 .attr('text-anchor', 'middle')
                 .attr('dy', '1.2em')
                 .style('font-size', '12px')
                 .style('fill', '#666')
                 .text('Total ' + (unit === 'bytes' ? 'Size' : 'Count'));
+        }
+        
+        function renderResourceLegend(resourceData, colorScale) {
+            const legendContainer = document.getElementById('resourceLegend');
+            legendContainer.innerHTML = '';
+            
+            // Sort data by size descending for legend
+            const sortedData = [...resourceData].sort((a, b) => b.size - a.size);
+            
+            sortedData.forEach(d => {
+                const legendItem = document.createElement('div');
+                legendItem.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8f9fa; border-radius: 6px;';
+                
+                const colorBox = document.createElement('div');
+                colorBox.style.cssText = `width: 16px; height: 16px; background-color: ${colorScale(d.type)}; border-radius: 3px; flex-shrink: 0;`;
+                legendItem.appendChild(colorBox);
+                
+                const textContainer = document.createElement('div');
+                textContainer.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+                
+                const typeName = document.createElement('span');
+                typeName.style.cssText = 'font-size: 13px; color: #333; font-weight: 600; min-width: 60px;';
+                typeName.textContent = d.type;
+                textContainer.appendChild(typeName);
+                
+                const sizeText = document.createElement('span');
+                sizeText.style.cssText = 'font-size: 12px; color: #666;';
+                sizeText.textContent = formatBytes(d.size);
+                textContainer.appendChild(sizeText);
+                
+                const countText = document.createElement('span');
+                countText.style.cssText = 'font-size: 11px; color: #999;';
+                countText.textContent = `(${d.count.toLocaleString()} ${d.count === 1 ? 'item' : 'items'})`;
+                textContainer.appendChild(countText);
+                
+                legendItem.appendChild(textContainer);
+                legendContainer.appendChild(legendItem);
+            });
         }
         
         // 4. User Impact Score
