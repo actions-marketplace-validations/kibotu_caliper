@@ -51,10 +51,18 @@ struct HTMLReporter {
         .summary-card h3 { font-size: 14px; color: #666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
         .summary-card .value { font-size: 28px; font-weight: bold; color: #333; }
         .summary-card .label { font-size: 11px; color: #999; margin-top: 5px; }
+        .summary-card .internal-info { font-size: 12px; color: #9b59b6; margin-top: 8px; font-weight: 600; }
         
         .controls { padding: 20px 30px; background: white; border-bottom: 1px solid #e0e0e0; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
         .controls input { padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; flex: 1; min-width: 200px; }
         .controls select { padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer; }
+        
+        /* Filter Chips */
+        .filter-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+        .filter-chip { padding: 8px 16px; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 13px; font-weight: 600; color: #666; background: white; cursor: pointer; transition: all 0.2s; user-select: none; }
+        .filter-chip:hover { border-color: #063773; color: #063773; background: #f0f6ff; }
+        .filter-chip.active { background: linear-gradient(135deg, #063773 0%, #0a5aa8 100%); color: white; border-color: #063773; }
+        .filter-chip.active:hover { background: linear-gradient(135deg, #0a5aa8 0%, #063773 100%); }
         
         .modules-grid { padding: 30px; }
         .module-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 16px; overflow: hidden; transition: all 0.2s ease; }
@@ -65,6 +73,7 @@ struct HTMLReporter {
         .module-name-row { font-size: 16px; font-weight: 600; color: #2d3748; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .module-version { color: #063773; }
         .owner-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #063773 0%, #0a5aa8 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(6, 55, 115, 0.2); flex-shrink: 0; }
+        .internal-badge { display: inline-flex; align-items: center; padding: 4px 10px; background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); color: white; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(155, 89, 182, 0.2); flex-shrink: 0; }
         .module-stats { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
         .module-stat { display: flex; flex-direction: column; align-items: flex-end; }
         .module-stat-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -103,9 +112,33 @@ struct HTMLReporter {
         
         .top-files { margin-top: 20px; }
         .top-files h4 { font-size: 16px; margin-bottom: 15px; color: #333; }
-        .file-item { display: flex; justify-content: space-between; padding: 10px; background: white; margin-bottom: 5px; border-radius: 4px; font-size: 13px; border: 1px solid #e0e0e0; }
+        .file-item { display: flex; justify-content: space-between; padding: 10px; background: white; margin-bottom: 5px; border-radius: 4px; font-size: 13px; border-left: 4px solid #e0e0e0; transition: all 0.2s; }
+        .file-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .file-path { color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif; }
         .file-size-value { color: #333; font-weight: 500; margin-left: 15px; }
+        .file-type-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; margin-right: 8px; }
+        
+        /* File type colors */
+        .file-type-image { border-left-color: #3498db; }
+        .file-type-image .file-type-badge { background: #e3f2fd; color: #1976d2; }
+        
+        .file-type-lottie { border-left-color: #9b59b6; }
+        .file-type-lottie .file-type-badge { background: #f3e5f5; color: #7b1fa2; }
+        
+        .file-type-pdf { border-left-color: #e74c3c; }
+        .file-type-pdf .file-type-badge { background: #ffebee; color: #c62828; }
+        
+        .file-type-video { border-left-color: #e67e22; }
+        .file-type-video .file-type-badge { background: #fff3e0; color: #e65100; }
+        
+        .file-type-audio { border-left-color: #1abc9c; }
+        .file-type-audio .file-type-badge { background: #e0f2f1; color: #00695c; }
+        
+        .file-type-font { border-left-color: #34495e; }
+        .file-type-font .file-type-badge { background: #eceff1; color: #37474f; }
+        
+        .file-type-other { border-left-color: #95a5a6; }
+        .file-type-other .file-type-badge { background: #f5f5f5; color: #616161; }
         
         .no-results { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
         .no-data { padding: 15px; color: #999; font-style: italic; text-align: center; }
@@ -154,6 +187,12 @@ struct HTMLReporter {
             <div class="summary" id="summary"></div>
             <div class="controls">
                 <input type="text" id="searchInput" placeholder="Search modules..." />
+                <div class="filter-chips">
+                    <div class="filter-chip active" data-filter="internal" onclick="toggleBreakdownFilter('internal')">Internal</div>
+                    <div class="filter-chip active" data-filter="external" onclick="toggleBreakdownFilter('external')">External</div>
+                    <div class="filter-chip active" data-filter="owned" onclick="toggleBreakdownFilter('owned')">Owned</div>
+                    <div class="filter-chip active" data-filter="unowned" onclick="toggleBreakdownFilter('unowned')">Unowned</div>
+                </div>
                 <select id="sortSelect">
                     <option value="downloadSize">Sort by: Download Size</option>
                     <option value="installSize">Sort by: Install Size</option>
@@ -165,17 +204,29 @@ struct HTMLReporter {
         
         <!-- Insights Tab -->
         <div id="insights" class="tab-content">
+            <!-- Filter Controls -->
+            <div style="padding: 20px 30px; background: white; border-bottom: 1px solid #e0e0e0;">
+                <div class="filter-chips">
+                    <div class="filter-chip active" data-filter="internal" onclick="toggleInsightsFilter('internal')">Internal</div>
+                    <div class="filter-chip active" data-filter="external" onclick="toggleInsightsFilter('external')">External</div>
+                </div>
+            </div>
+            
             <!-- Top Offenders Dashboard -->
             <div style="padding: 30px; background: white; border-bottom: 1px solid #e0e0e0;">
                 <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">🔥 Top Offenders</h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
-                    <div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
+                    <div style="min-width: 0; overflow: hidden;">
                         <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">Largest Modules</h3>
                         <div id="topModulesChart"></div>
                     </div>
-                    <div>
+                    <div style="min-width: 0; overflow: hidden;">
                         <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">Largest Source Files</h3>
                         <div id="topFilesChart"></div>
+                    </div>
+                    <div style="min-width: 0; overflow: hidden;">
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">Largest Asset Files</h3>
+                        <div id="topAssetsChart"></div>
                     </div>
                 </div>
             </div>
@@ -212,13 +263,17 @@ struct HTMLReporter {
         <!-- Ownership Tab -->
         <div id="ownership" class="tab-content">
             <div style="padding: 30px; background: white;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; flex-wrap: wrap; gap: 20px;">
                     <div>
                         <h2 style="font-size: 20px; color: #333; margin-bottom: 10px;">Ownership overview</h2>
                         <p style="color: #666; font-size: 14px;">Shows how much of the overall app size is owned by each owner.</p>
                     </div>
-                    <div style="min-width: 200px;">
-                        <select id="ownershipSortSelect" style="width: 100%; padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer;">
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div class="filter-chips">
+                            <div class="filter-chip active" data-filter="internal" onclick="toggleOwnershipFilter('internal')">Internal</div>
+                            <div class="filter-chip active" data-filter="external" onclick="toggleOwnershipFilter('external')">External</div>
+                        </div>
+                        <select id="ownershipSortSelect" style="padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer;">
                             <option value="downloadSize">Sort by: Download Size</option>
                             <option value="installSize">Sort by: Install Size</option>
                         </select>
@@ -247,6 +302,9 @@ struct HTMLReporter {
         const data = __DATA__;
         let currentTab = 'breakdown';
         let currentSort = 'downloadSize';
+        let breakdownFilters = { internal: true, external: true, owned: true, unowned: true };
+        let insightsFilters = { internal: true, external: true };
+        let ownershipFilters = { internal: true, external: true };
         
         // Update header with app info if available
         function updateHeader() {
@@ -300,6 +358,107 @@ struct HTMLReporter {
             return div.innerHTML;
         }
         
+        // Filter functions
+        function toggleBreakdownFilter(filter) {
+            breakdownFilters[filter] = !breakdownFilters[filter];
+            document.querySelectorAll('#breakdown .filter-chip').forEach(chip => {
+                if (chip.dataset.filter === filter) {
+                    chip.classList.toggle('active', breakdownFilters[filter]);
+                }
+            });
+            renderModules(document.getElementById('searchInput').value, currentSort);
+        }
+        
+        function toggleInsightsFilter(filter) {
+            insightsFilters[filter] = !insightsFilters[filter];
+            document.querySelectorAll('#insights .filter-chip').forEach(chip => {
+                if (chip.dataset.filter === filter) {
+                    chip.classList.toggle('active', insightsFilters[filter]);
+                }
+            });
+            renderInsights();
+        }
+        
+        function toggleOwnershipFilter(filter) {
+            ownershipFilters[filter] = !ownershipFilters[filter];
+            document.querySelectorAll('#ownership .filter-chip').forEach(chip => {
+                if (chip.dataset.filter === filter) {
+                    chip.classList.toggle('active', ownershipFilters[filter]);
+                }
+            });
+            ownershipData = prepareOwnershipData(currentOwnershipSort);
+            renderOwnershipChart();
+            populateOwnerDropdown();
+            // Reset detail view
+            document.getElementById('ownerDropdown').value = '';
+            document.getElementById('ownerDetailSection').style.display = 'none';
+        }
+        
+        function moduleMatchesBreakdownFilters(module) {
+            // Check internal/external filter
+            const isInternal = module.internal === true;
+            const internalMatch = (isInternal && breakdownFilters.internal) || (!isInternal && breakdownFilters.external);
+            if (!internalMatch) return false;
+            
+            // Check owned/unowned filter
+            const isOwned = module.owner && module.owner.toLowerCase() !== 'others';
+            const ownedMatch = (isOwned && breakdownFilters.owned) || (!isOwned && breakdownFilters.unowned);
+            if (!ownedMatch) return false;
+            
+            return true;
+        }
+        
+        function moduleMatchesInsightsFilters(module) {
+            const isInternal = module.internal === true;
+            return (isInternal && insightsFilters.internal) || (!isInternal && insightsFilters.external);
+        }
+        
+        function moduleMatchesOwnershipFilters(module) {
+            const isInternal = module.internal === true;
+            return (isInternal && ownershipFilters.internal) || (!isInternal && ownershipFilters.external);
+        }
+        
+        function getFileTypeInfo(filePath) {
+            const ext = filePath.split('.').pop().toLowerCase();
+            
+            // Image files
+            if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'heic', 'heif', 'webp', 'bmp', 'tiff', 'tif'].includes(ext)) {
+                return { type: 'image', label: ext.toUpperCase(), class: 'file-type-image' };
+            }
+            
+            // Lottie/JSON files (check if JSON is likely an animation)
+            if (ext === 'json') {
+                // Assume JSON files in asset catalogs are likely Lottie animations
+                if (filePath.toLowerCase().includes('lottie') || filePath.toLowerCase().includes('animation')) {
+                    return { type: 'lottie', label: 'LOTTIE', class: 'file-type-lottie' };
+                }
+                return { type: 'lottie', label: 'JSON', class: 'file-type-lottie' };
+            }
+            
+            // PDF files
+            if (ext === 'pdf') {
+                return { type: 'pdf', label: 'PDF', class: 'file-type-pdf' };
+            }
+            
+            // Video files
+            if (['mp4', 'mov', 'avi', 'mkv', 'm4v', 'mpg', 'mpeg', 'wmv', 'webm'].includes(ext)) {
+                return { type: 'video', label: ext.toUpperCase(), class: 'file-type-video' };
+            }
+            
+            // Audio files
+            if (['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'aiff', 'wma'].includes(ext)) {
+                return { type: 'audio', label: ext.toUpperCase(), class: 'file-type-audio' };
+            }
+            
+            // Font files
+            if (['ttf', 'otf', 'woff', 'woff2', 'eot'].includes(ext)) {
+                return { type: 'font', label: ext.toUpperCase(), class: 'file-type-font' };
+            }
+            
+            // Other files
+            return { type: 'other', label: ext.toUpperCase(), class: 'file-type-other' };
+        }
+        
         function calculateModuleTotal(module) {
             let total = 0;
             
@@ -322,29 +481,40 @@ struct HTMLReporter {
         function renderSummary() {
             const totalPackageSize = data.totalPackageSize || 0;
             const totalInstallSize = data.totalInstallSize || 0;
-            const moduleCount = Object.keys(data.modules).length;
-            const totalBinarySize = Object.values(data.modules).reduce((sum, m) => sum + (m.binarySize || 0), 0);
+            const allModules = Object.values(data.modules);
+            const moduleCount = allModules.length;
+            const totalBinarySize = allModules.reduce((sum, m) => sum + (m.binarySize || 0), 0);
+            
+            // Calculate internal totals
+            const internalModules = allModules.filter(m => m.internal === true);
+            const internalCount = internalModules.length;
+            const internalBinarySize = internalModules.reduce((sum, m) => sum + (m.binarySize || 0), 0);
+            const internalInstallSize = internalModules.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
             
             document.getElementById('summary').innerHTML = `
                 <div class="summary-card">
                     <h3>Download Size</h3>
                     <div class="value">${formatBytes(totalPackageSize)}</div>
                     <div class="label">Compressed IPA</div>
+                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalBinarySize)}</div>` : ''}
                 </div>
                 <div class="summary-card">
                     <h3>Install Size</h3>
                     <div class="value">${formatBytes(totalInstallSize)}</div>
                     <div class="label">Uncompressed</div>
+                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalInstallSize)}</div>` : ''}
                 </div>
                 <div class="summary-card">
                     <h3>Binary Size</h3>
                     <div class="value">${formatBytes(totalBinarySize)}</div>
                     <div class="label">Executable Code</div>
+                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${formatBytes(internalBinarySize)}</div>` : ''}
                 </div>
                 <div class="summary-card">
                     <h3>Modules</h3>
                     <div class="value">${moduleCount}</div>
                     <div class="label">Total Count</div>
+                    ${internalCount > 0 ? `<div class="internal-info">Internal: ${internalCount}</div>` : ''}
                 </div>
             `;
         }
@@ -356,6 +526,9 @@ struct HTMLReporter {
             if (searchTerm) {
                 modules = modules.filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()));
             }
+            
+            // Apply breakdown filters
+            modules = modules.filter(m => moduleMatchesBreakdownFilters(m));
             
             modules.sort((a, b) => {
                 switch(sortBy) {
@@ -403,7 +576,10 @@ struct HTMLReporter {
                 const topFilesHTML = topFiles.length > 0 ? `
                     <div class="top-files">
                         <h4>Asset Files <span class="count-badge">${topFiles.length}</span></h4>
-                        ${topFiles.map(([path, size]) => `<div class="file-item"><span class="file-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`).join('')}
+                        ${topFiles.map(([path, size]) => {
+                            const fileInfo = getFileTypeInfo(path);
+                            return `<div class="file-item ${fileInfo.class}"><span class="file-path" title="${escapeHtml(path)}"><span class="file-type-badge">${fileInfo.label}</span>${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`;
+                        }).join('')}
                     </div>
                 ` : '';
                 
@@ -438,6 +614,7 @@ struct HTMLReporter {
                                     ${module.version ? `<span class="module-version">:${module.version}</span>` : ''}
                                 </div>
                                 ${module.owner ? `<span class="owner-badge">${module.owner}</span>` : ''}
+                                ${module.internal ? `<span class="internal-badge">Internal</span>` : ''}
                             </div>
                             <div class="module-stats">
                                 <div class="module-stat">
@@ -509,6 +686,11 @@ struct HTMLReporter {
             let hasOwners = false;
             
             Object.entries(data.modules).forEach(([moduleName, module]) => {
+                // Apply ownership filters
+                if (!moduleMatchesOwnershipFilters(module)) {
+                    return;
+                }
+                
                 const owner = module.owner || 'others';
                 if (module.owner) hasOwners = true;
                 
@@ -871,7 +1053,10 @@ struct HTMLReporter {
                 const topFilesHTML = topFiles.length > 0 ? `
                     <div class="top-files">
                         <h4>Asset Files <span class="count-badge">${topFiles.length}</span></h4>
-                        ${topFiles.map(([path, size]) => `<div class="file-item"><span class="file-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`).join('')}
+                        ${topFiles.map(([path, size]) => {
+                            const fileInfo = getFileTypeInfo(path);
+                            return `<div class="file-item ${fileInfo.class}"><span class="file-path" title="${escapeHtml(path)}"><span class="file-type-badge">${fileInfo.label}</span>${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`;
+                        }).join('')}
                     </div>
                 ` : '';
                 
@@ -901,6 +1086,7 @@ struct HTMLReporter {
                                     ${moduleName}
                                     ${module.version ? `<span class="module-version">:${module.version}</span>` : ''}
                                 </div>
+                                ${module.internal ? `<span class="internal-badge">Internal</span>` : ''}
                             </div>
                             <div class="module-stats">
                                 <div class="module-stat">
@@ -994,15 +1180,18 @@ struct HTMLReporter {
         
         // 1. Top Offenders Dashboard
         function renderTopOffenders() {
-            const modules = Object.values(data.modules);
+            const allModules = Object.values(data.modules);
             
-            // Top 10 Modules by size
+            // Apply insights filters
+            const modules = allModules.filter(m => moduleMatchesInsightsFilters(m));
+            
+            // Top 20 Modules by size
             const topModules = modules
                 .map(m => ({ name: m.name, size: calculateModuleTotal(m), owner: m.owner }))
                 .sort((a, b) => b.size - a.size)
-                .slice(0, 10);
+                .slice(0, 20);
             
-            // Top 10 Source Files across all modules
+            // Top 20 Source Files across all modules
             const allFiles = [];
             modules.forEach(module => {
                 if (module.files) {
@@ -1015,13 +1204,31 @@ struct HTMLReporter {
                     });
                 }
             });
-            const topFiles = allFiles.sort((a, b) => b.size - a.size).slice(0, 10);
+            const topFiles = allFiles.sort((a, b) => b.size - a.size).slice(0, 20);
+            
+            // Top 20 Asset Files across all modules
+            const allAssets = [];
+            modules.forEach(module => {
+                if (module.top) {
+                    Object.entries(module.top).forEach(([path, size]) => {
+                        allAssets.push({
+                            name: path,
+                            size: size,
+                            module: module.name
+                        });
+                    });
+                }
+            });
+            const topAssets = allAssets.sort((a, b) => b.size - a.size).slice(0, 20);
             
             // Render Top Modules Bar Chart
             renderHorizontalBarChart('topModulesChart', topModules, 'size', 'name', '#063773');
             
             // Render Top Files Bar Chart
             renderHorizontalBarChart('topFilesChart', topFiles, 'size', 'name', '#e74c3c');
+            
+            // Render Top Assets Bar Chart
+            renderHorizontalBarChart('topAssetsChart', topAssets, 'size', 'name', '#3498db');
         }
         
         function renderHorizontalBarChart(containerId, data, sizeKey, nameKey, color) {
@@ -1033,14 +1240,18 @@ struct HTMLReporter {
                 return;
             }
             
-            const margin = { top: 10, right: 80, bottom: 30, left: 200 };
-            const width = 500;
+            // Get container width and make chart responsive
+            const containerWidth = container.offsetWidth || 400;
+            const margin = { top: 10, right: 60, bottom: 30, left: 140 };
+            const width = Math.max(containerWidth, 300);
             const height = data.length * 35 + margin.top + margin.bottom;
             
             const svg = d3.select('#' + containerId)
                 .append('svg')
-                .attr('width', width)
-                .attr('height', height);
+                .attr('width', '100%')
+                .attr('height', height)
+                .attr('viewBox', `0 0 ${width} ${height}`)
+                .attr('preserveAspectRatio', 'xMidYMid meet');
             
             const g = svg.append('g')
                 .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1054,6 +1265,10 @@ struct HTMLReporter {
                 .range([0, height - margin.top - margin.bottom])
                 .padding(0.2);
             
+            // Create tooltip
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'd3-tooltip');
+            
             // Bars
             g.selectAll('.bar')
                 .data(data)
@@ -1066,6 +1281,24 @@ struct HTMLReporter {
                 .attr('height', y.bandwidth())
                 .attr('fill', color)
                 .attr('rx', 3)
+                .on('mouseover', function(event, d) {
+                    d3.select(this).style('opacity', 0.7);
+                    let tooltipContent = `
+                        <div style="font-weight: bold; margin-bottom: 5px;">${escapeHtml(d[nameKey])}</div>
+                        <div>Size: ${formatBytes(d[sizeKey])}</div>
+                    `;
+                    if (d.module) {
+                        tooltipContent += `<div style="margin-top: 5px; color: #ffd700;">Module: ${escapeHtml(d.module)}</div>`;
+                    }
+                    tooltip.html(tooltipContent)
+                        .classed('visible', true)
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('opacity', 1);
+                    tooltip.classed('visible', false);
+                })
                 .transition()
                 .duration(800)
                 .attr('width', d => x(d[sizeKey]));
@@ -1080,11 +1313,12 @@ struct HTMLReporter {
                 .attr('y', (d, i) => y(i) + y.bandwidth() / 2)
                 .attr('text-anchor', 'end')
                 .attr('dominant-baseline', 'middle')
-                .style('font-size', '12px')
+                .style('font-size', '11px')
                 .style('fill', '#333')
                 .text(d => {
                     const name = d[nameKey];
-                    return name.length > 25 ? name.substring(0, 25) + '...' : name;
+                    const maxLen = Math.floor((margin.left - 20) / 6); // Approximate characters that fit
+                    return name.length > maxLen ? name.substring(0, maxLen) + '...' : name;
                 })
                 .append('title')
                 .text(d => d[nameKey]);
@@ -1099,7 +1333,7 @@ struct HTMLReporter {
                 .attr('y', (d, i) => y(i) + y.bandwidth() / 2)
                 .attr('text-anchor', 'start')
                 .attr('dominant-baseline', 'middle')
-                .style('font-size', '11px')
+                .style('font-size', '10px')
                 .style('fill', '#666')
                 .style('font-weight', 'bold')
                 .text(d => formatBytes(d[sizeKey]));
@@ -1110,7 +1344,10 @@ struct HTMLReporter {
             const container = document.getElementById('treemapChart');
             container.innerHTML = '';
             
-            const modules = Object.values(data.modules);
+            const allModules = Object.values(data.modules);
+            
+            // Apply insights filters
+            const modules = allModules.filter(m => moduleMatchesInsightsFilters(m));
             
             // Prepare hierarchical data
             const treemapData = {
@@ -1228,7 +1465,10 @@ struct HTMLReporter {
         
         // 3. Resource Type Breakdown
         function renderResourceBreakdown() {
-            const modules = Object.values(data.modules);
+            const allModules = Object.values(data.modules);
+            
+            // Apply insights filters
+            const modules = allModules.filter(m => moduleMatchesInsightsFilters(m));
             
             // Aggregate all resources
             const resourceStats = {};

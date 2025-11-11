@@ -3,6 +3,7 @@
 # This file maps module identifiers to their owners/teams.
 # The 'identifier' field supports wildcards (* and ?) to match multiple modules.
 # The 'owner' field is used for grouping modules in reports.
+# The 'internal' field (optional) marks modules as internal, enabling filtering in reports.
 #
 # Important: Module names in report.json remain unchanged (e.g., "ProfisPartnerCore").
 # The owner field is added for grouping/categorization purposes.
@@ -10,14 +11,17 @@
 # Example entries:
 
 # Match all modules with "ProfisPartnerCore" in the name and assign to "Core" owner
+# Mark as internal to enable filtering
 - identifier: "*ProfisPartnerCore*"
   owner: Core
+  internal: true
 
 # Match specific module
 - identifier: "Authentication"
   owner: Security
 
-# Match all network-related modules
+# Match all network-related modules (external)
 - identifier: "Network*"
   owner: Infrastructure
+  internal: false
 

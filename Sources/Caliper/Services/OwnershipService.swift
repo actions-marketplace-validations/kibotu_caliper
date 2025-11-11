@@ -31,14 +31,25 @@ struct OwnershipService {
         return nil
     }
     
+    /// Find the ownership entry for a given module name
+    func findEntry(for moduleName: String, in entries: [OwnershipEntry]) -> OwnershipEntry? {
+        for entry in entries {
+            if entry.matches(moduleName) {
+                return entry
+            }
+        }
+        return nil
+    }
+    
     /// Assign owners to modules in the app size report
     func assignOwners(
         to modules: [String: ModuleSize],
         using entries: [OwnershipEntry]
     ) {
         for (moduleName, moduleSize) in modules {
-            if let owner = findOwner(for: moduleName, in: entries) {
-                moduleSize.owner = owner
+            if let entry = findEntry(for: moduleName, in: entries) {
+                moduleSize.owner = entry.owner
+                moduleSize.internal = entry.`internal`
             }
         }
     }

@@ -4,6 +4,7 @@ import Foundation
 final class ModuleSize: Codable {
     let name: String
     var owner: String?
+    var `internal`: Bool?
     var version: String?
     var binarySize: Int64 = 0
     var imageSize: Int64 = 0
@@ -19,6 +20,7 @@ final class ModuleSize: Codable {
     init(name: String) {
         self.name = name
         self.owner = nil
+        self.internal = nil
         self.version = nil
     }
     
@@ -65,7 +67,7 @@ final class ModuleSize: Codable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case name, owner, version, binarySize, imageSize, imageFileSize, proguard, resources, top, files
+        case name, owner, `internal`, version, binarySize, imageSize, imageFileSize, proguard, resources, top, files
     }
 }
 
