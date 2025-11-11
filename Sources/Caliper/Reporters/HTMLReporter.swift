@@ -163,13 +163,49 @@ struct HTMLReporter {
             <div class="modules-grid" id="modulesGrid"></div>
         </div>
         
-        <!-- Insights Tab (Placeholder) -->
+        <!-- Insights Tab -->
         <div id="insights" class="tab-content">
-            <div class="summary">
-                <div class="summary-card">
-                    <h3>Coming Soon</h3>
-                    <p>Insights and analytics will be available in a future update.</p>
+            <!-- Top Offenders Dashboard -->
+            <div style="padding: 30px; background: white; border-bottom: 1px solid #e0e0e0;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">🔥 Top Offenders</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
+                    <div>
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">Largest Modules</h3>
+                        <div id="topModulesChart"></div>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">Largest Source Files</h3>
+                        <div id="topFilesChart"></div>
+                    </div>
                 </div>
+            </div>
+            
+            <!-- Treemap Visualization -->
+            <div style="padding: 30px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 10px;">🗺️ App Size Treemap</h2>
+                <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Interactive visualization of all modules sized proportionally. Click to explore.</p>
+                <div id="treemapChart" style="background: white; border-radius: 8px; overflow: hidden;"></div>
+            </div>
+            
+            <!-- Resource Type Breakdown -->
+            <div style="padding: 30px; background: white; border-bottom: 1px solid #e0e0e0;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">📦 Resource Type Breakdown</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px;">
+                    <div>
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">By Count</h3>
+                        <div id="resourceCountChart"></div>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">By Size</h3>
+                        <div id="resourceSizeChart"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- User Impact Score -->
+            <div style="padding: 30px; background: #f8f9fa;">
+                <h2 style="font-size: 20px; color: #333; margin-bottom: 20px;">👤 User Impact</h2>
+                <div id="userImpactSection"></div>
             </div>
         </div>
         
@@ -938,6 +974,482 @@ struct HTMLReporter {
         ownershipData = prepareOwnershipData(currentOwnershipSort);
         renderOwnershipChart();
         populateOwnerDropdown();
+        
+        // Initialize Insights tab when it's shown
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                if (this.textContent.trim() === 'Insights') {
+                    setTimeout(renderInsights, 100); // Delay to ensure tab is visible
+                }
+            });
+        });
+        
+        // Insights Tab Functions
+        function renderInsights() {
+            renderTopOffenders();
+            renderTreemap();
+            renderResourceBreakdown();
+            renderUserImpact();
+        }
+        
+        // 1. Top Offenders Dashboard
+        function renderTopOffenders() {
+            const modules = Object.values(data.modules);
+            
+            // Top 10 Modules by size
+            const topModules = modules
+                .map(m => ({ name: m.name, size: calculateModuleTotal(m), owner: m.owner }))
+                .sort((a, b) => b.size - a.size)
+                .slice(0, 10);
+            
+            // Top 10 Source Files across all modules
+            const allFiles = [];
+            modules.forEach(module => {
+                if (module.files) {
+                    module.files.forEach(file => {
+                        allFiles.push({
+                            name: file.fileName,
+                            size: file.size,
+                            module: module.name
+                        });
+                    });
+                }
+            });
+            const topFiles = allFiles.sort((a, b) => b.size - a.size).slice(0, 10);
+            
+            // Render Top Modules Bar Chart
+            renderHorizontalBarChart('topModulesChart', topModules, 'size', 'name', '#063773');
+            
+            // Render Top Files Bar Chart
+            renderHorizontalBarChart('topFilesChart', topFiles, 'size', 'name', '#e74c3c');
+        }
+        
+        function renderHorizontalBarChart(containerId, data, sizeKey, nameKey, color) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            if (data.length === 0) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
+            
+            const margin = { top: 10, right: 80, bottom: 30, left: 200 };
+            const width = 500;
+            const height = data.length * 35 + margin.top + margin.bottom;
+            
+            const svg = d3.select('#' + containerId)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d[sizeKey])])
+                .range([0, width - margin.left - margin.right]);
+            
+            const y = d3.scaleBand()
+                .domain(data.map((d, i) => i))
+                .range([0, height - margin.top - margin.bottom])
+                .padding(0.2);
+            
+            // Bars
+            g.selectAll('.bar')
+                .data(data)
+                .enter()
+                .append('rect')
+                .attr('class', 'bar')
+                .attr('x', 0)
+                .attr('y', (d, i) => y(i))
+                .attr('width', 0)
+                .attr('height', y.bandwidth())
+                .attr('fill', color)
+                .attr('rx', 3)
+                .transition()
+                .duration(800)
+                .attr('width', d => x(d[sizeKey]));
+            
+            // Labels (names)
+            g.selectAll('.label')
+                .data(data)
+                .enter()
+                .append('text')
+                .attr('class', 'label')
+                .attr('x', -10)
+                .attr('y', (d, i) => y(i) + y.bandwidth() / 2)
+                .attr('text-anchor', 'end')
+                .attr('dominant-baseline', 'middle')
+                .style('font-size', '12px')
+                .style('fill', '#333')
+                .text(d => {
+                    const name = d[nameKey];
+                    return name.length > 25 ? name.substring(0, 25) + '...' : name;
+                })
+                .append('title')
+                .text(d => d[nameKey]);
+            
+            // Size labels
+            g.selectAll('.size-label')
+                .data(data)
+                .enter()
+                .append('text')
+                .attr('class', 'size-label')
+                .attr('x', d => x(d[sizeKey]) + 5)
+                .attr('y', (d, i) => y(i) + y.bandwidth() / 2)
+                .attr('text-anchor', 'start')
+                .attr('dominant-baseline', 'middle')
+                .style('font-size', '11px')
+                .style('fill', '#666')
+                .style('font-weight', 'bold')
+                .text(d => formatBytes(d[sizeKey]));
+        }
+        
+        // 2. Treemap Visualization
+        function renderTreemap() {
+            const container = document.getElementById('treemapChart');
+            container.innerHTML = '';
+            
+            const modules = Object.values(data.modules);
+            
+            // Prepare hierarchical data
+            const treemapData = {
+                name: 'App',
+                children: modules.map(m => ({
+                    name: m.name,
+                    value: calculateModuleTotal(m),
+                    binarySize: m.binarySize || 0,
+                    imageSize: m.imageFileSize || 0,
+                    owner: m.owner
+                }))
+            };
+            
+            const width = 1200;
+            const height = 600;
+            
+            const svg = d3.select('#treemapChart')
+                .append('svg')
+                .attr('width', '100%')
+                .attr('height', height)
+                .attr('viewBox', `0 0 ${width} ${height}`);
+            
+            const color = d3.scaleOrdinal()
+                .domain(modules.map(m => m.owner || 'others'))
+                .range(d3.schemeTableau10);
+            
+            const root = d3.hierarchy(treemapData)
+                .sum(d => d.value)
+                .sort((a, b) => b.value - a.value);
+            
+            d3.treemap()
+                .size([width, height])
+                .padding(2)
+                .round(true)
+                (root);
+            
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'd3-tooltip');
+            
+            const leaf = svg.selectAll('g')
+                .data(root.leaves())
+                .enter()
+                .append('g')
+                .attr('transform', d => `translate(${d.x0},${d.y0})`);
+            
+            leaf.append('rect')
+                .attr('width', d => d.x1 - d.x0)
+                .attr('height', d => d.y1 - d.y0)
+                .attr('fill', d => color(d.data.owner || 'others'))
+                .attr('opacity', 0.8)
+                .attr('stroke', 'white')
+                .attr('stroke-width', 2)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('opacity', 1);
+                    const percentage = ((d.value / data.totalInstallSize) * 100).toFixed(1);
+                    tooltip.html(`
+                        <div style="font-weight: bold; margin-bottom: 5px;">${escapeHtml(d.data.name)}</div>
+                        <div>Total: ${formatBytes(d.value)} (${percentage}%)</div>
+                        <div>Binary: ${formatBytes(d.data.binarySize)}</div>
+                        <div>Assets: ${formatBytes(d.data.imageSize)}</div>
+                        ${d.data.owner ? `<div style="margin-top: 5px; color: #ffd700;">Owner: ${escapeHtml(d.data.owner)}</div>` : ''}
+                    `)
+                    .classed('visible', true)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).attr('opacity', 0.8);
+                    tooltip.classed('visible', false);
+                })
+                .transition()
+                .duration(800)
+                .attrTween('width', function(d) {
+                    const i = d3.interpolate(0, d.x1 - d.x0);
+                    return t => i(t);
+                })
+                .attrTween('height', function(d) {
+                    const i = d3.interpolate(0, d.y1 - d.y0);
+                    return t => i(t);
+                });
+            
+            // Add text labels for larger rectangles
+            leaf.append('text')
+                .attr('x', 4)
+                .attr('y', 16)
+                .text(d => {
+                    const width = d.x1 - d.x0;
+                    const height = d.y1 - d.y0;
+                    if (width > 80 && height > 30) {
+                        return d.data.name.length > 15 ? d.data.name.substring(0, 15) + '...' : d.data.name;
+                    }
+                    return '';
+                })
+                .style('font-size', '11px')
+                .style('fill', 'white')
+                .style('font-weight', 'bold')
+                .style('pointer-events', 'none');
+            
+            leaf.append('text')
+                .attr('x', 4)
+                .attr('y', 30)
+                .text(d => {
+                    const width = d.x1 - d.x0;
+                    const height = d.y1 - d.y0;
+                    if (width > 80 && height > 45) {
+                        return formatBytes(d.value);
+                    }
+                    return '';
+                })
+                .style('font-size', '10px')
+                .style('fill', 'rgba(255,255,255,0.9)')
+                .style('pointer-events', 'none');
+        }
+        
+        // 3. Resource Type Breakdown
+        function renderResourceBreakdown() {
+            const modules = Object.values(data.modules);
+            
+            // Aggregate all resources
+            const resourceStats = {};
+            
+            // Add binary as a resource type
+            let totalBinarySize = 0;
+            modules.forEach(m => {
+                totalBinarySize += m.binarySize || 0;
+            });
+            if (totalBinarySize > 0) {
+                resourceStats['Binary'] = { size: totalBinarySize, count: modules.length };
+            }
+            
+            // Add images
+            let totalImageSize = 0;
+            let imageCount = 0;
+            modules.forEach(m => {
+                totalImageSize += m.imageFileSize || 0;
+                if (m.imageFileSize > 0) imageCount++;
+            });
+            if (totalImageSize > 0) {
+                resourceStats['Images'] = { size: totalImageSize, count: imageCount };
+            }
+            
+            // Add other resources
+            modules.forEach(module => {
+                Object.entries(module.resources || {}).forEach(([type, res]) => {
+                    if (!resourceStats[type]) {
+                        resourceStats[type] = { size: 0, count: 0 };
+                    }
+                    resourceStats[type].size += res.size;
+                    resourceStats[type].count += res.count;
+                });
+            });
+            
+            const resourceData = Object.entries(resourceStats).map(([type, stats]) => ({
+                type,
+                size: stats.size,
+                count: stats.count
+            }));
+            
+            // Render Count Donut Chart
+            renderDonutChart('resourceCountChart', resourceData, 'count', 'type', 'files');
+            
+            // Render Size Donut Chart
+            renderDonutChart('resourceSizeChart', resourceData, 'size', 'type', 'bytes');
+        }
+        
+        function renderDonutChart(containerId, data, valueKey, labelKey, unit) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            if (data.length === 0) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
+            
+            const width = 400;
+            const height = 350;
+            const radius = Math.min(width, height) / 2 - 40;
+            
+            const svg = d3.select('#' + containerId)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .append('g')
+                .attr('transform', `translate(${width / 2},${height / 2})`);
+            
+            const color = d3.scaleOrdinal()
+                .domain(data.map(d => d[labelKey]))
+                .range(d3.schemeSet3);
+            
+            const pie = d3.pie()
+                .value(d => d[valueKey])
+                .sort(null);
+            
+            const arc = d3.arc()
+                .innerRadius(radius * 0.6)
+                .outerRadius(radius);
+            
+            const arcHover = d3.arc()
+                .innerRadius(radius * 0.6)
+                .outerRadius(radius * 1.05);
+            
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'd3-tooltip');
+            
+            const total = d3.sum(data, d => d[valueKey]);
+            
+            const arcs = svg.selectAll('.arc')
+                .data(pie(data))
+                .enter()
+                .append('g')
+                .attr('class', 'arc');
+            
+            arcs.append('path')
+                .attr('d', arc)
+                .attr('fill', d => color(d.data[labelKey]))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 2)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('d', arcHover);
+                    
+                    const percentage = ((d.data[valueKey] / total) * 100).toFixed(1);
+                    const displayValue = unit === 'bytes' ? formatBytes(d.data[valueKey]) : d.data[valueKey].toLocaleString();
+                    
+                    tooltip.html(`
+                        <div style="font-weight: bold; margin-bottom: 5px;">${escapeHtml(d.data[labelKey])}</div>
+                        <div>${displayValue} ${unit === 'bytes' ? '' : unit}</div>
+                        <div>${percentage}% of total</div>
+                    `)
+                    .classed('visible', true)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('d', arc);
+                    tooltip.classed('visible', false);
+                })
+                .transition()
+                .duration(800)
+                .attrTween('d', function(d) {
+                    const i = d3.interpolate({ startAngle: 0, endAngle: 0 }, d);
+                    return t => arc(i(t));
+                });
+            
+            // Center text
+            svg.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '-0.5em')
+                .style('font-size', '24px')
+                .style('font-weight', 'bold')
+                .style('fill', '#333')
+                .text(unit === 'bytes' ? formatBytes(total) : total.toLocaleString());
+            
+            svg.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '1.2em')
+                .style('font-size', '12px')
+                .style('fill', '#666')
+                .text('Total ' + (unit === 'bytes' ? 'Size' : 'Count'));
+        }
+        
+        // 4. User Impact Score
+        function renderUserImpact() {
+            const container = document.getElementById('userImpactSection');
+            const downloadSize = data.totalPackageSize || 0;
+            const installSize = data.totalInstallSize || 0;
+            
+            // Network speeds in Mbps
+            const networks = [
+                { name: 'WiFi', speed: 100, icon: '📶', color: '#2ecc71' },
+                { name: '5G', speed: 50, icon: '📱', color: '#3498db' },
+                { name: '4G', speed: 10, icon: '📱', color: '#f39c12' },
+                { name: '3G', speed: 1, icon: '📱', color: '#e74c3c' }
+            ];
+            
+            // Calculate download times (in seconds)
+            const downloadSizeMB = downloadSize / (1024 * 1024);
+            const downloadTimes = networks.map(net => ({
+                ...net,
+                time: (downloadSizeMB * 8) / net.speed, // Convert to seconds
+                size: downloadSize
+            }));
+            
+            // iPhone storage comparison (using 64GB as baseline)
+            const iPhone64GB = 64 * 1024 * 1024 * 1024;
+            const iPhone128GB = 128 * 1024 * 1024 * 1024;
+            const iPhone256GB = 256 * 1024 * 1024 * 1024;
+            
+            const storagePercentages = [
+                { capacity: '64GB', size: iPhone64GB, percent: (installSize / iPhone64GB) * 100 },
+                { capacity: '128GB', size: iPhone128GB, percent: (installSize / iPhone128GB) * 100 },
+                { capacity: '256GB', size: iPhone256GB, percent: (installSize / iPhone256GB) * 100 }
+            ];
+            
+            function formatTime(seconds) {
+                if (seconds < 60) return Math.round(seconds) + 's';
+                const minutes = Math.floor(seconds / 60);
+                const secs = Math.round(seconds % 60);
+                return `${minutes}m ${secs}s`;
+            }
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    ${downloadTimes.map(net => `
+                        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid ${net.color};">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <div style="font-size: 24px;">${net.icon}</div>
+                                <div style="font-size: 14px; color: #666; font-weight: 600;">${net.name}</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: bold; color: ${net.color}; margin-bottom: 5px;">${formatTime(net.time)}</div>
+                            <div style="font-size: 12px; color: #999;">Download time for ${formatBytes(downloadSize)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <h3 style="font-size: 16px; color: #333; margin-bottom: 15px;">📱 iPhone Storage Impact</h3>
+                <div style="background: white; padding: 25px; border-radius: 8px;">
+                    ${storagePercentages.map(storage => `
+                        <div style="margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 14px; color: #333; font-weight: 500;">iPhone ${storage.capacity}</span>
+                                <span style="font-size: 14px; color: #063773; font-weight: bold;">${storage.percent.toFixed(3)}%</span>
+                            </div>
+                            <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
+                                <div style="background: linear-gradient(90deg, #063773 0%, #0a5aa8 100%); height: 100%; width: ${Math.min(storage.percent, 100)}%; transition: width 0.8s ease;"></div>
+                            </div>
+                            <div style="font-size: 11px; color: #999; margin-top: 5px;">${formatBytes(installSize)} of ${storage.capacity}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
