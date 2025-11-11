@@ -1,6 +1,6 @@
 # Caliper
 
-[![Build](https://github.com/kibotu/caliper/actions/workflows/build.yml/badge.svg)](https://github.com/kibotu/caliper/actions/workflows/build.yml) [![GitHub Tag](https://img.shields.io/github/v/tag/kibotu/caliper?sort=semver)](https://github.com/kibotu/caliper/tags) ![Static Badge](https://img.shields.io/badge/Platform%20-%20iOS%20-%20light_green)
+[![Build](https://github.com/kibotu/caliper/actions/workflows/build.yml/badge.svg)](https://github.com/kibotu/caliper/actions/workflows/build.yml) [![GitHub Tag](https://img.shields.io/github/v/tag/kibotu/caliper?sort=semver)](https://github.com/kibotu/caliper/tags)
 [![Static Badge](https://img.shields.io/badge/iOS-26-blue)](https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-26-release-notes)
 [![Static Badge](https://img.shields.io/badge/Swift%206.0%20-%20orange)](https://www.swift.org/blog/announcing-swift-6/)
 
