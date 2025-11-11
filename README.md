@@ -6,8 +6,6 @@
 
 Analyze iOS app bundle sizes, track module ownership, and generate detailed size reports. Helps iOS teams monitor and optimize app size metrics for App Store submissions and performance tracking.
 
-## Screenshots
-
 <table>
   <tr>
     <td width="33%">
