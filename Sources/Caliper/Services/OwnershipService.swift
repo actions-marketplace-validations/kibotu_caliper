@@ -49,22 +49,5 @@ struct OwnershipService {
             }
         }
     }
-    
-    /// Group modules by owner
-    func groupModulesByOwner(
-        _ modules: [String: ModuleSize]
-    ) -> [String: [String: ModuleSize]] {
-        var grouped: [String: [String: ModuleSize]] = [:]
-        
-        for (moduleName, moduleSize) in modules {
-            let owner = moduleSize.owner ?? "others"
-            if grouped[owner] == nil {
-                grouped[owner] = [:]
-            }
-            grouped[owner]?[moduleName] = moduleSize
-        }
-        
-        return grouped
-    }
 }
 

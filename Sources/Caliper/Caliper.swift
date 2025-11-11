@@ -141,12 +141,6 @@ struct Caliper: ParsableCommand {
             ownershipService.assignOwners(to: appSizeReport, using: ownershipEntries)
         }
         
-        // Group by owner if ownership file was provided
-        var modulesByOwner: [String: [String: ModuleSize]]? = nil
-        if !ownershipEntries.isEmpty {
-            modulesByOwner = ownershipService.groupModulesByOwner(appSizeReport)
-        }
-        
         // Generate JSON output (always to report.json)
         ProgressReporter.section("Generating JSON output...")
         let jsonOutputPath = "report.json"
@@ -154,7 +148,6 @@ struct Caliper: ParsableCommand {
             appInfo: appInfo,
             modules: appSizeReport,
             totalSize: totalSize,
-            modulesByOwner: modulesByOwner,
             outputPath: jsonOutputPath
         )
         

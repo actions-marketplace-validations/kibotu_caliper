@@ -363,10 +363,10 @@ struct HTMLReporter {
                 ` : '';
                 
                 // Top files from asset catalog
-                const topFiles = Object.entries(module.top || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                const topFiles = Object.entries(module.top || {}).sort((a, b) => b[1] - a[1]);
                 const topFilesHTML = topFiles.length > 0 ? `
                     <div class="top-files">
-                        <h4>Top 10 Largest Asset Files</h4>
+                        <h4>Asset Files <span class="count-badge">${topFiles.length}</span></h4>
                         ${topFiles.map(([path, size]) => `<div class="file-item"><span class="file-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`).join('')}
                     </div>
                 ` : '';
@@ -468,11 +468,25 @@ struct HTMLReporter {
         let currentOwnershipSort = 'downloadSize';
         
         function prepareOwnershipData(sortBy = 'downloadSize') {
-            if (!data.modulesByOwner || Object.keys(data.modulesByOwner).length === 0) {
+            // Group modules by owner property
+            const modulesByOwner = {};
+            let hasOwners = false;
+            
+            Object.entries(data.modules).forEach(([moduleName, module]) => {
+                const owner = module.owner || 'others';
+                if (module.owner) hasOwners = true;
+                
+                if (!modulesByOwner[owner]) {
+                    modulesByOwner[owner] = {};
+                }
+                modulesByOwner[owner][moduleName] = module;
+            });
+            
+            if (!hasOwners) {
                 return [];
             }
             
-            const ownerData = Object.entries(data.modulesByOwner).map(([ownerName, modules]) => {
+            const ownerData = Object.entries(modulesByOwner).map(([ownerName, modules]) => {
                 const moduleList = Object.values(modules);
                 const totalBinarySize = moduleList.reduce((sum, m) => sum + (m.binarySize || 0), 0);
                 const totalInstallSize = moduleList.reduce((sum, m) => sum + calculateModuleTotal(m), 0);
@@ -817,10 +831,10 @@ struct HTMLReporter {
                 ` : '';
                 
                 // Top files from asset catalog
-                const topFiles = Object.entries(module.top || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                const topFiles = Object.entries(module.top || {}).sort((a, b) => b[1] - a[1]);
                 const topFilesHTML = topFiles.length > 0 ? `
                     <div class="top-files">
-                        <h4>Top 10 Largest Asset Files</h4>
+                        <h4>Asset Files <span class="count-badge">${topFiles.length}</span></h4>
                         ${topFiles.map(([path, size]) => `<div class="file-item"><span class="file-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span><span class="file-size-value">${formatBytes(size)}</span></div>`).join('')}
                     </div>
                 ` : '';

@@ -8,15 +8,13 @@ struct JSONReporter {
         appInfo: AppInfo?,
         modules: [String: ModuleSize],
         totalSize: (packageSize: Int64, installSize: Int64),
-        modulesByOwner: [String: [String: ModuleSize]]?,
         outputPath: String?
     ) throws -> String {
         let outputData = CaliperOutput(
             appInfo: appInfo,
             modules: modules,
             totalPackageSize: totalSize.packageSize,
-            totalInstallSize: totalSize.installSize,
-            modulesByOwner: modulesByOwner
+            totalInstallSize: totalSize.installSize
         )
         
         let encoder = JSONEncoder()

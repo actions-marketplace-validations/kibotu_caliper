@@ -36,9 +36,9 @@ final class ModuleSize: Codable {
         top[file] = size
     }
     
-    /// Finalize the top files list (sort and keep top 30)
+    /// Finalize the top files list (sort by size)
     func finalizeTop() {
-        let sorted = top.sorted { $0.value > $1.value }.prefix(30)
+        let sorted = top.sorted { $0.value > $1.value }
         top = [:]
         for (key, value) in sorted {
             top[key] = value
