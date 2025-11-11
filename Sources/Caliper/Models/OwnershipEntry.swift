@@ -4,7 +4,6 @@ import Foundation
 struct OwnershipEntry: Codable {
     let identifier: String
     let owner: String
-    let module: String?
     
     /// Check if this entry matches the given module name
     /// Supports wildcards (* and ?)

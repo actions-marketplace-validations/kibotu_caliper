@@ -74,10 +74,19 @@ LinkMap files provide accurate binary size measurements:
 Track module ownership with a YAML file:
 
 ```yaml
+# Match modules and assign to owners
+- identifier: "*ProfisPartnerCore*"
+  owner: Core
+
 - identifier: "MyFeature*"
-  owner: "team-alpha"
-  module: "MyFeature"
+  owner: team-alpha
 ```
+
+**How it works:**
+- `identifier`: Pattern with wildcards (`*` = any characters, `?` = single character) to match module names from IPA/LinkMap
+- `owner`: Group/team name for categorization in reports
+- **Module names in report.json stay unchanged** (e.g., `ProfisPartnerCore` remains `ProfisPartnerCore`)
+- The `owner` field is added to matched modules for grouping/filtering in reports
 
 ```bash
 # Analyze with ownership tracking (modules grouped by owner in output)

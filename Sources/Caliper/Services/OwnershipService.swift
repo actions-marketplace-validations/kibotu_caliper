@@ -12,20 +12,13 @@ struct OwnershipService {
     }
     
     /// Build module mapping from ownership entries
+    /// Note: Returns empty dictionary since we don't want to rename modules,
+    /// only assign owners. The assignOwners() function handles ownership assignment
+    /// using wildcard pattern matching while preserving actual module names.
     func buildModuleMapping(from entries: [OwnershipEntry]) -> [String: String] {
-        var mapping: [String: String] = [:]
-        
-        for entry in entries {
-            if let moduleName = entry.module {
-                // Extract framework name from identifier
-                let frameworkName = entry.identifier.replacingOccurrences(of: "*", with: "")
-                if !frameworkName.isEmpty {
-                    mapping[frameworkName] = moduleName
-                }
-            }
-        }
-        
-        return mapping
+        // Return empty mapping - we don't want to rename modules,
+        // we only want to assign owners via assignOwners()
+        return [:]
     }
     
     /// Find the owner for a given module name
