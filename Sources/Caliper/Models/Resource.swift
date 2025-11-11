@@ -5,4 +5,3 @@ struct Resource: Codable {
     var size: Int64 = 0
     var count: Int = 0
 }
-

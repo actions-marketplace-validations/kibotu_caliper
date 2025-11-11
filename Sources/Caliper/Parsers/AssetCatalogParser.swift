@@ -2,7 +2,6 @@ import Foundation
 
 /// Parser for .car asset catalog files
 struct AssetCatalogParser {
-    
     /// Parse an asset catalog file and add the results to the module
     func parse(filePath: String, moduleSize: ModuleSize) throws {
         let process = Process()
@@ -110,4 +109,3 @@ struct AssetCatalogParser {
         }
     }
 }
-

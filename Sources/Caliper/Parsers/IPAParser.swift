@@ -226,4 +226,3 @@ struct IPAParser {
         }
     }
 }
-

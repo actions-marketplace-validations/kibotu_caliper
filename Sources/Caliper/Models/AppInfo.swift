@@ -13,14 +13,9 @@ struct AppInfo: Codable {
     
     /// Computed property for displaying version info
     var versionString: String? {
-        if let version = version, let build = buildNumber {
+        if let version, let build = buildNumber {
             return "\(version) (\(build))"
-        } else if let version = version {
-            return version
-        } else if let build = buildNumber {
-            return build
         }
-        return nil
+        return version ?? buildNumber
     }
 }
-

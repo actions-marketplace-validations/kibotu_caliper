@@ -2,8 +2,6 @@ import Foundation
 
 /// Service for calculating sizes of files and directories
 struct SizeCalculator {
-    private let fileManager = FileManager.default
-    
     /// Calculate total package and install sizes
     func calculateTotalSize(
         ipaPath: String,
@@ -11,7 +9,7 @@ struct SizeCalculator {
     ) throws -> (packageSize: Int64, installSize: Int64) {
         // Package size (compressed IPA)
         let ipaURL = URL(fileURLWithPath: ipaPath)
-        let attributes = try fileManager.attributesOfItem(atPath: ipaURL.path)
+        let attributes = try FileManager.default.attributesOfItem(atPath: ipaURL.path)
         let packageSize = attributes[.size] as? Int64 ?? 0
         
         // Install size (uncompressed)
@@ -24,10 +22,10 @@ struct SizeCalculator {
     func directorySize(at path: String) throws -> Int64 {
         var totalSize: Int64 = 0
         
-        if let enumerator = fileManager.enumerator(atPath: path) {
+        if let enumerator = FileManager.default.enumerator(atPath: path) {
             for case let file as String in enumerator {
                 let filePath = (path as NSString).appendingPathComponent(file)
-                let attributes = try fileManager.attributesOfItem(atPath: filePath)
+                let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
                 totalSize += attributes[.size] as? Int64 ?? 0
             }
         }
@@ -126,4 +124,3 @@ struct SizeCalculator {
         }
     }
 }
-

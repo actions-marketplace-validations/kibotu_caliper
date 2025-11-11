@@ -21,4 +21,3 @@ struct PackageResolved: Codable {
     let pins: [PackagePin]
     let version: Int
 }
-

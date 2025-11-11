@@ -8,4 +8,3 @@ struct PackageNameMapping: Codable {
     /// The package identity as it appears in Package.resolved (e.g., "ext.adjust_signature_sdk")
     let packageIdentity: String
 }
-

@@ -2,22 +2,10 @@ import Foundation
 
 /// Reporter for generating HTML output
 struct HTMLReporter {
-    
     /// Generate HTML report from JSON data
     func generate(jsonString: String, outputPath: String) throws {
         let html = htmlTemplate.replacingOccurrences(of: "__DATA__", with: jsonString)
         try html.write(toFile: outputPath, atomically: true, encoding: .utf8)
-    }
-    
-    /// Determine HTML output path from JSON output path
-    func determineOutputPath(from jsonPath: String) -> String {
-        let url = URL(fileURLWithPath: jsonPath)
-        
-        if !url.pathExtension.isEmpty {
-            return url.deletingPathExtension().appendingPathExtension("html").path
-        } else {
-            return jsonPath + ".html"
-        }
     }
     
     // MARK: - HTML Template

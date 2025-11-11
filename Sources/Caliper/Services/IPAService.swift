@@ -2,11 +2,9 @@ import Foundation
 
 /// Service for handling IPA file operations
 struct IPAService {
-    private let fileManager = FileManager.default
-    
     /// Verify that an IPA file exists
     func verifyIPAExists(at path: String) throws {
-        guard fileManager.fileExists(atPath: path) else {
+        guard FileManager.default.fileExists(atPath: path) else {
             throw CaliperError.invalidIPA
         }
     }
@@ -34,7 +32,6 @@ struct IPAService {
     /// Clean up a temporary directory
     func cleanup(path: String) {
         fputs("\n🧹 Cleaning up temporary directory: \(path)\n", stderr)
-        try? fileManager.removeItem(atPath: path)
+        try? FileManager.default.removeItem(atPath: path)
     }
 }
-

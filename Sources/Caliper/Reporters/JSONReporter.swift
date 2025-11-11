@@ -2,7 +2,6 @@ import Foundation
 
 /// Reporter for generating JSON output
 struct JSONReporter {
-    
     /// Generate and output JSON report
     func generate(
         appInfo: AppInfo?,
@@ -36,4 +35,3 @@ struct JSONReporter {
         return jsonString
     }
 }
-

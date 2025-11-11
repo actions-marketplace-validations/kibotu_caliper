@@ -1,7 +1,7 @@
 import Foundation
 
 /// Errors that can occur during Caliper execution
-enum CaliperError: Error {
+enum CaliperError: Error, LocalizedError {
     case unzipFailed
     case invalidIPA
     case invalidOwnershipFile
@@ -10,28 +10,25 @@ enum CaliperError: Error {
     case parseError(String)
     case linkMapParsingFailed(String)
     case assetCatalogParsingFailed(String)
-}
-
-extension CaliperError: LocalizedError {
+    
     var errorDescription: String? {
         switch self {
         case .unzipFailed:
-            return "Failed to unzip IPA file"
+            "Failed to unzip IPA file"
         case .invalidIPA:
-            return "Invalid IPA file"
+            "Invalid IPA file"
         case .invalidOwnershipFile:
-            return "Invalid ownership configuration file"
+            "Invalid ownership configuration file"
         case .invalidOutput:
-            return "Failed to generate output"
+            "Failed to generate output"
         case .fileNotFound(let path):
-            return "File not found: \(path)"
+            "File not found: \(path)"
         case .parseError(let reason):
-            return "Parse error: \(reason)"
+            "Parse error: \(reason)"
         case .linkMapParsingFailed(let reason):
-            return "Failed to parse LinkMap: \(reason)"
+            "Failed to parse LinkMap: \(reason)"
         case .assetCatalogParsingFailed(let reason):
-            return "Failed to parse asset catalog: \(reason)"
+            "Failed to parse asset catalog: \(reason)"
         }
     }
 }
-

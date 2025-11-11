@@ -2,11 +2,7 @@ import Foundation
 
 /// Parser for Package.resolved files to extract Swift package version information
 struct PackageResolvedParser {
-    
     /// Parse a Package.resolved file and return a mapping of module names to versions
-    /// - Parameter path: Path to the Package.resolved file
-    /// - Returns: Dictionary mapping package identities to version strings
-    /// - Throws: CaliperError if parsing fails
     func parse(path: String) throws -> [String: String] {
         let url = URL(fileURLWithPath: path)
         
@@ -44,32 +40,23 @@ struct PackageResolvedParser {
         }
     }
     
-    /// Extract the package name from the identity
-    /// - Parameter identity: The full identity (e.g., "ext.firebaseiossdk")
-    /// - Returns: The extracted package name (e.g., "firebaseiossdk")
+    /// Extract the package name from the identity (e.g., "ext.firebaseiossdk" -> "firebaseiossdk")
     private func extractPackageName(from identity: String) -> String {
         let components = identity.split(separator: ".")
-        if components.count > 1 {
-            // Return everything after the first dot
-            return components.dropFirst().joined(separator: ".")
-        }
-        return identity
+        return components.count > 1 ? components.dropFirst().joined(separator: ".") : identity
     }
     
     /// Extract a version string from package state
-    /// - Parameter state: The package state containing version/revision/branch info
-    /// - Returns: A formatted version string
     private func extractVersionString(from state: PackageState) -> String {
         if let version = state.version {
             return version
-        } else if let revision = state.revision {
-            // Return shortened revision (first 7 characters)
-            let shortRevision = String(revision.prefix(7))
-            return "rev:\(shortRevision)"
-        } else if let branch = state.branch {
+        }
+        if let revision = state.revision {
+            return "rev:\(revision.prefix(7))"
+        }
+        if let branch = state.branch {
             return "branch:\(branch)"
         }
         return "unknown"
     }
 }
-

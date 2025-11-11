@@ -2,12 +2,7 @@ import Foundation
 
 /// Service to manage package version information from Package.resolved
 struct VersionService {
-    
     /// Assign versions to modules based on package resolved data
-    /// - Parameters:
-    ///   - modules: Dictionary of module names to ModuleSize objects
-    ///   - versionMapping: Dictionary mapping package names to version strings
-    ///   - packageNameMapping: Optional dictionary mapping module names to package identities (for namespace handling)
     func assignVersions(
         to modules: [String: ModuleSize],
         using versionMapping: [String: String],
@@ -50,4 +45,3 @@ struct VersionService {
         }
     }
 }
-

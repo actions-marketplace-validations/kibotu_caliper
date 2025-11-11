@@ -27,17 +27,10 @@ struct Caliper: ParsableCommand {
     
     func run() throws {
         // Initialize services
-        let ipaService = IPAService()
-        let ownershipService = OwnershipService()
-        let versionService = VersionService()
-        let packageMappingService = PackageMappingService()
-        let sizeCalculator = SizeCalculator()
-        let ipaParser = IPAParser()
-        let linkMapParser = LinkMapParser()
-        let packageResolvedParser = PackageResolvedParser()
-        let jsonReporter = JSONReporter()
-        let htmlReporter = HTMLReporter()
-        let appInfoService = AppInfoService()
+        let (ipaService, appInfoService) = (IPAService(), AppInfoService())
+        let (ipaParser, linkMapParser, packageResolvedParser) = (IPAParser(), LinkMapParser(), PackageResolvedParser())
+        let (ownershipService, versionService, packageMappingService) = (OwnershipService(), VersionService(), PackageMappingService())
+        let (sizeCalculator, jsonReporter, htmlReporter) = (SizeCalculator(), JSONReporter(), HTMLReporter())
         
         // Verify IPA exists
         try ipaService.verifyIPAExists(at: ipaPath)
@@ -66,17 +59,9 @@ struct Caliper: ParsableCommand {
         // Extract app info
         ProgressReporter.section("📱 Extracting app information...")
         let appInfo = try? appInfoService.extractAppInfo(from: unzippedPath)
-        if let info = appInfo {
-            if let name = info.appName {
-                ProgressReporter.message("App Name: \(name)")
-            }
-            if let version = info.versionString {
-                ProgressReporter.message("Version: \(version)")
-            }
-            if let bundleId = info.bundleIdentifier {
-                ProgressReporter.message("Bundle ID: \(bundleId)")
-            }
-        }
+        appInfo?.appName.map { ProgressReporter.message("App Name: \($0)") }
+        appInfo?.versionString.map { ProgressReporter.message("Version: \($0)") }
+        appInfo?.bundleIdentifier.map { ProgressReporter.message("Bundle ID: \($0)") }
         
         // Load ownership configuration
         let (ownershipEntries, moduleMapping) = try loadOwnershipConfiguration(
@@ -122,11 +107,10 @@ struct Caliper: ParsableCommand {
             let versionMapping = try packageResolvedParser.parse(path: packageResolvedPath)
             
             // Load package name mapping if provided
-            var packageNameMapping: [String: String]? = nil
-            if let mappingPath = packageMappingFile {
+            let packageNameMapping: [String: String]? = try packageMappingFile.map { mappingPath in
                 ProgressReporter.section("🔗 Loading package name mappings...")
                 let mappings = try packageMappingService.loadMappingFile(from: mappingPath)
-                packageNameMapping = packageMappingService.buildMappingDictionary(from: mappings)
+                return packageMappingService.buildMappingDictionary(from: mappings)
             }
             
             versionService.assignVersions(
@@ -173,8 +157,6 @@ struct Caliper: ParsableCommand {
         }
         
         let entries = try ownershipService.loadOwnershipFile(from: ownershipPath)
-        let mapping = ownershipService.buildModuleMapping(from: entries)
-        
-        return (entries, mapping)
+        return (entries, [:])  // Empty mapping - ownership is assigned via pattern matching, not renaming
     }
 }

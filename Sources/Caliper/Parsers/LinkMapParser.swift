@@ -133,28 +133,9 @@ struct LinkMapParser {
     }
     
     private func findModuleName(baseName: String, pathComponents: [String]) -> String {
-        // Known module prefixes (check in order of specificity)
-        let modulePrefixes = [
-            "ProfisPartnerMover",
-            "ProfisPartnerCraftsmen",
-            "ProfisPartnerEvents",
-            "ProfisPartnerPortal",
-            "C24ProfisNativeMessenger",
-            "ProfisPartnerCore"
-        ]
-        
-        // Check for prefix match
-        for prefix in modulePrefixes {
-            if baseName.lowercased().hasPrefix(prefix.lowercased()) {
-                return prefix
-            }
-        }
-        
-        // Check for .build directory in path
-        for component in pathComponents {
-            if component.hasSuffix(".build") {
-                return component.replacingOccurrences(of: ".build", with: "")
-            }
+        // Check for .build directory in path (Swift Package Manager modules)
+        if let buildDir = pathComponents.first(where: { $0.hasSuffix(".build") }) {
+            return buildDir.replacingOccurrences(of: ".build", with: "")
         }
         
         // Default to base filename
@@ -413,4 +394,3 @@ struct LinkMapParser {
         return digitCount > 0 ? length : nil
     }
 }
-

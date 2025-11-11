@@ -6,19 +6,17 @@ struct OwnershipEntry: Codable {
     let owner: String
     let `internal`: Bool?
     
-    /// Check if this entry matches the given module name
-    /// Supports wildcards (* and ?)
+    /// Matches module name with wildcard support (* and ?)
     func matches(_ moduleName: String) -> Bool {
         let pattern = identifier
             .replacingOccurrences(of: "*", with: ".*")
             .replacingOccurrences(of: "?", with: ".")
         
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return identifier.lowercased() == moduleName.lowercased()
+        guard let regex = try? NSRegularExpression(pattern: "^\(pattern)$", options: [.caseInsensitive]) else {
+            return identifier.caseInsensitiveCompare(moduleName) == .orderedSame
         }
         
         let range = NSRange(moduleName.startIndex..., in: moduleName)
         return regex.firstMatch(in: moduleName, options: [], range: range) != nil
     }
 }
-

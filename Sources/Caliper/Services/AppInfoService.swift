@@ -2,8 +2,6 @@ import Foundation
 
 /// Service for extracting app information from IPA
 struct AppInfoService {
-    private let fileManager = FileManager.default
-    
     /// Extract app info from the unzipped IPA directory
     func extractAppInfo(from unzippedPath: String) throws -> AppInfo? {
         // Find the .app directory
@@ -14,7 +12,7 @@ struct AppInfoService {
         
         // Read Info.plist
         let infoPlistPath = "\(appDirectory)/Info.plist"
-        guard fileManager.fileExists(atPath: infoPlistPath) else {
+        guard FileManager.default.fileExists(atPath: infoPlistPath) else {
             ProgressReporter.warning("Info.plist not found at: \(infoPlistPath)")
             return nil
         }
@@ -27,18 +25,11 @@ struct AppInfoService {
     private func findAppDirectory(in unzippedPath: String) -> String? {
         let payloadPath = "\(unzippedPath)/Payload"
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: payloadPath) else {
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: payloadPath) else {
             return nil
         }
         
-        // Find the .app directory
-        for item in contents {
-            if item.hasSuffix(".app") {
-                return "\(payloadPath)/\(item)"
-            }
-        }
-        
-        return nil
+        return contents.first { $0.hasSuffix(".app") }.map { "\(payloadPath)/\($0)" }
     }
     
     private func parseInfoPlist(at path: String) throws -> AppInfo? {
@@ -64,4 +55,3 @@ struct AppInfoService {
         )
     }
 }
-

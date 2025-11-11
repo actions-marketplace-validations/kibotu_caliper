@@ -1,6 +1,7 @@
 import Foundation
 
 /// Represents size information for a module/framework
+/// Class is used for reference semantics - allows mutation during incremental parsing
 final class ModuleSize: Codable {
     let name: String
     var owner: String?
@@ -19,18 +20,12 @@ final class ModuleSize: Codable {
     
     init(name: String) {
         self.name = name
-        self.owner = nil
-        self.internal = nil
-        self.version = nil
     }
     
     /// Add a resource to this module
     func addResource(type: String, size: Int64) {
-        if resources[type] == nil {
-            resources[type] = Resource()
-        }
-        resources[type]?.size += size
-        resources[type]?.count += 1
+        resources[type, default: Resource()].size += size
+        resources[type, default: Resource()].count += 1
     }
     
     /// Track a file in the top files list
@@ -40,29 +35,23 @@ final class ModuleSize: Codable {
     
     /// Finalize the top files list (sort by size)
     func finalizeTop() {
-        let sorted = top.sorted { $0.value > $1.value }
-        top = [:]
-        for (key, value) in sorted {
-            top[key] = value
-        }
+        top = Dictionary(uniqueKeysWithValues: top.sorted { $0.value > $1.value })
     }
     
     /// Add file size information
     func addFileSize(fileName: String, size: Int64) {
-        if filesDict[fileName] == nil {
-            filesDict[fileName] = FileSize(fileName: fileName)
-        }
-        filesDict[fileName]?.size += size
-        filesDict[fileName]?.symbolCount += 1
+        var fileSize = filesDict[fileName] ?? FileSize(fileName: fileName, size: 0, symbolCount: 0)
+        fileSize.size += size
+        fileSize.symbolCount += 1
+        filesDict[fileName] = fileSize
     }
     
     /// Finalize the files list (convert to sorted array by size, largest first)
-    /// Filters out the module-level entry (unattributed code) to avoid confusion
+    /// Filters out the module-level entry (unattributed code)
     func finalizeFiles() {
         files = filesDict.values
-            .filter { $0.fileName != self.name } // Exclude module-level entry (unattributed)
+            .filter { $0.fileName != name }
             .sorted { $0.size > $1.size }
-        // Clear the internal dictionary to save memory
         filesDict.removeAll()
     }
     
@@ -70,4 +59,3 @@ final class ModuleSize: Codable {
         case name, owner, `internal`, version, binarySize, imageSize, imageFileSize, proguard, resources, top, files
     }
 }
-

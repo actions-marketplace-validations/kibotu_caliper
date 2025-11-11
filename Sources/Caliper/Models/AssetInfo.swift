@@ -5,4 +5,3 @@ struct AssetInfo: Codable {
     let RenditionName: String?
     let SizeOnDisk: Int?
 }
-
