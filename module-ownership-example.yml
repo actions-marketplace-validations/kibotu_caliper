@@ -13,9 +13,9 @@
 #
 # Example entries:
 
-# Match all modules with "ProfisPartnerCore" in the name and assign to "Core" owner
+# Match all modules with "Core" in the name and assign to "Core" owner
 # Mark as internal to enable filtering
-- identifier: "*ProfisPartnerCore*"
+- identifier: "*Core*"
   owner: Core
   internal: true
 
@@ -27,4 +27,3 @@
 - identifier: "Network*"
   owner: Infrastructure
   internal: false
-

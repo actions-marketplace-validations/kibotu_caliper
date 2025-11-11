@@ -117,7 +117,6 @@ Track which team owns which modules:
 
 - identifier: "ThirdParty*"
   owner: External
-  internal: false
 ```
 
 **Pattern syntax:**
@@ -410,41 +409,6 @@ jobs:
             });
 ```
 
-### Size Threshold Checking
-
-**Bash script for CI:**
-
-```bash
-#!/bin/bash
-# check-size-threshold.sh
-
-MAX_SIZE_MB=100
-REPORT="report.json"
-
-if [ ! -f "$REPORT" ]; then
-    echo "❌ Report not found: $REPORT"
-    exit 1
-fi
-
-# Extract size in bytes and convert to MB
-SIZE_BYTES=$(jq '.totalPackageSize' "$REPORT")
-SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1024 / 1024" | bc)
-
-echo "📦 App Size: ${SIZE_MB} MB"
-echo "📏 Threshold: ${MAX_SIZE_MB} MB"
-
-# Compare (using awk for floating point)
-EXCEEDS=$(awk -v size="$SIZE_MB" -v max="$MAX_SIZE_MB" 'BEGIN { print (size > max) ? 1 : 0 }')
-
-if [ "$EXCEEDS" -eq 1 ]; then
-    echo "❌ App size exceeds threshold!"
-    exit 1
-else
-    echo "✅ App size within threshold"
-    exit 0
-fi
-```
-
 ## Required Tools
 
 Caliper requires the following command-line tools to be installed:
@@ -514,22 +478,6 @@ sudo xcode-select --switch /Applications/Xcode.app
 ### Large IPA takes too long
 
 **Solution:** The tool processes files sequentially. Progress is shown in the terminal. For very large IPAs (>500MB), analysis may take 2-5 minutes.
-
-## Architecture
-
-Clean, modular architecture for easy maintenance:
-
-```
-Sources/Caliper/
-├── Models/         # Data structures
-├── Services/       # Business logic  
-├── Parsers/        # File format parsing (IPA, LinkMap, YAML)
-├── Reporters/      # Output generation (JSON, HTML)
-├── Utilities/      # Helper functions
-└── Errors/         # Error types
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
 
 ## Inspiration
 
