@@ -2,7 +2,7 @@ import Foundation
 
 /// Represents size information for a module/framework
 /// Class is used for reference semantics - allows mutation during incremental parsing
-final class ModuleSize: Codable {
+final class ModuleSize: Codable, @unchecked Sendable {
     let name: String
     var owner: String?
     var `internal`: Bool?

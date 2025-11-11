@@ -1,7 +1,7 @@
 # Caliper
 
 [![Build](https://github.com/kibotu/caliper/actions/workflows/build.yml/badge.svg)](https://github.com/kibotu/caliper/actions/workflows/build.yml) [![GitHub Tag](https://img.shields.io/github/v/tag/kibotu/caliper?include_prereleases&sort=semver)](https://github.com/kibotu/caliper/releases) ![Static Badge](https://img.shields.io/badge/Platform%20-%20iOS%20-%20light_green)
-[![Static Badge](https://img.shields.io/badge/iOS%20-%20%3E%2015.0%20-%20light_green)](https://support.apple.com/en-us/101566)
+[![Static Badge](https://img.shields.io/badge/iOS%20-%20%3E%2015.0%20%7C%20iOS%2026%20-%20light_green)](https://support.apple.com/en-us/101566)
 [![Static Badge](https://img.shields.io/badge/Swift%206.0%20-%20orange)](https://www.swift.org/blog/announcing-swift-6/)
 
 Analyze iOS app bundle sizes, track module ownership, and generate detailed size reports. Helps iOS teams monitor and optimize app size metrics for App Store submissions and performance tracking.
@@ -433,7 +433,7 @@ xcode-select --install
 ```bash
 # Check Swift
 swift --version
-# Should show: Swift version 5.9 or later
+# Should show: Swift version 6.0 or later
 
 # Check unzip
 which unzip
@@ -449,9 +449,9 @@ xcrun --sdk iphoneos assetutil --version 2>/dev/null && echo "✅ assetutil avai
 
 ## Requirements
 
-- **macOS** 13.0 or later
-- **Xcode** 15.0 or later
-- **Swift** 5.9 or later
+- **macOS** 14.0 or later
+- **Xcode** 16.0 or later
+- **Swift** 6.0 or later
 - **Xcode Command Line Tools** (includes unzip, xcrun, assetutil)
 
 ## Troubleshooting

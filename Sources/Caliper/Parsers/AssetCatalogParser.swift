@@ -14,8 +14,9 @@ struct AssetCatalogParser {
         process.standardError = errorPipe
         
         // Accumulate output data asynchronously to prevent buffer blocking
-        var outputData = Data()
-        var errorData = Data()
+        // Using nonisolated(unsafe) for Swift 6 concurrency: handlers are cleaned up before data access
+        nonisolated(unsafe) var outputData = Data()
+        nonisolated(unsafe) var errorData = Data()
         
         pipe.fileHandleForReading.readabilityHandler = { handle in
             let availableData = handle.availableData
