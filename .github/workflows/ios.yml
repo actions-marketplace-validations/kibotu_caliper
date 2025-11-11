@@ -20,23 +20,51 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Detect project
-        id: detect
+      - name: Build Caliper CLI
         run: |
-          PROJECT_PATH=$(find . -name "*.xcodeproj" -type d | head -n 1)
-          PROJECT_DIR=$(dirname "$PROJECT_PATH")
-          PROJECT_FILE=$(basename "$PROJECT_PATH")
-          SCHEME=$(xcodebuild -list -json -project "$PROJECT_PATH" | jq -r '.project.schemes[0]')
-          
-          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
-          echo "project_file=$PROJECT_FILE" >> $GITHUB_OUTPUT
-          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+          echo "🔨 Building Caliper CLI tool..."
+          swift build -c release
+          echo "✅ Caliper built successfully"
+          .build/release/caliper --help
 
-      - name: Build iOS app
-        working-directory: ${{ steps.detect.outputs.project_dir }}
+      - name: Build Sample App (IPA + Link Map)
+        working-directory: Sample
         run: |
-          xcodebuild \
-            -project "${{ steps.detect.outputs.project_file }}" \
-            -scheme "${{ steps.detect.outputs.scheme }}" \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            clean build
+          echo "🚀 Building Sample App with Link Map..."
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Verify build artifacts
+        working-directory: Sample
+        run: |
+          echo "📦 Checking build artifacts..."
+          ls -lh build/CaliperSampleApp.ipa
+          ls -lh build/CaliperSampleApp-LinkMap.txt
+
+      - name: Run Caliper Analysis
+        working-directory: Sample
+        run: |
+          echo "📊 Running Caliper analysis..."
+          ../.build/release/caliper \
+            --ipa-path build/CaliperSampleApp.ipa \
+            --link-map-path build/CaliperSampleApp-LinkMap.txt \
+            --package-resolved-path CaliperSampleApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+            --ownership-file module-ownership.yml \
+            --output report.json
+          
+          echo "✅ Analysis complete!"
+          ls -lh report.json report.html
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./Sample
+          publish_branch: gh-pages
+          destination_dir: .
+          keep_files: false
+          enable_jekyll: false
+          commit_message: 'Deploy Caliper report from ${{ github.sha }}'
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
