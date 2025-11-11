@@ -80,13 +80,28 @@ Track module ownership with a YAML file:
 
 - identifier: "MyFeature*"
   owner: team-alpha
+  internal: true
 ```
 
 **How it works:**
 - `identifier`: Pattern with wildcards (`*` = any characters, `?` = single character) to match module names from IPA/LinkMap
 - `owner`: Group/team name for categorization in reports
+- `internal`: (Optional) Boolean flag to mark modules as internal/first-party code
 - **Module names in report.json stay unchanged** (e.g., `ProfisPartnerCore` remains `ProfisPartnerCore`)
-- The `owner` field is added to matched modules for grouping/filtering in reports
+- The `owner` and `internal` fields are added to matched modules for grouping/filtering in reports
+
+**Automatic App Module Tagging:**
+
+Caliper automatically identifies and tags the main app module as:
+- `owner`: "App"
+- `internal`: true
+
+The app module is detected from the IPA using:
+1. The app name from Info.plist
+2. The bundle identifier's last component
+3. Heuristics (modules with binary size but no version)
+
+This happens automatically even without an ownership file. If you explicitly configure the app module in your ownership file, your configuration takes precedence.
 
 ```bash
 # Analyze with ownership tracking (modules grouped by owner in output)
@@ -172,6 +187,7 @@ JSON structure:
     "ModuleName": {
       "name": "ModuleName",
       "owner": "team-alpha",
+      "internal": true,
       "version": "1.2.3",
       "binarySize": 1234567,
       "imageSize": 234567,
@@ -192,7 +208,8 @@ JSON structure:
 
 Fields:
 - `name` - Module/framework name
-- `owner` - Team/owner (if ownership file provided)
+- `owner` - Team/owner (if ownership file provided or auto-detected for app module)
+- `internal` - Whether module is internal/first-party code (optional, from ownership file or auto-detected for app module)
 - `version` - Package version (if Package.resolved provided)
 - `binarySize` - Compiled binary code size (bytes)
 - `imageSize` - Compressed image assets (bytes)
@@ -254,6 +271,7 @@ stage('App Size Analysis') {
 - Asset catalog (.car files) analysis
 - Interactive HTML reports
 - Module ownership tracking
+- Automatic app module detection and tagging
 - Swift package version tracking from Package.resolved
 - Package name mapping support for namespaced packages
 - Automatic IPA handling (unzip/cleanup)

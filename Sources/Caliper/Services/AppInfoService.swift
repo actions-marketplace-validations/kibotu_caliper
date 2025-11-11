@@ -10,6 +10,9 @@ struct AppInfoService {
             return nil
         }
         
+        // Extract the app module name from the .app directory name
+        let appModuleName = extractAppModuleName(from: appDirectory)
+        
         // Read Info.plist
         let infoPlistPath = "\(appDirectory)/Info.plist"
         guard FileManager.default.fileExists(atPath: infoPlistPath) else {
@@ -17,7 +20,7 @@ struct AppInfoService {
             return nil
         }
         
-        return try parseInfoPlist(at: infoPlistPath)
+        return try parseInfoPlist(at: infoPlistPath, appModuleName: appModuleName)
     }
     
     // MARK: - Private Methods
@@ -32,7 +35,21 @@ struct AppInfoService {
         return contents.first { $0.hasSuffix(".app") }.map { "\(payloadPath)/\($0)" }
     }
     
-    private func parseInfoPlist(at path: String) throws -> AppInfo? {
+    private func extractAppModuleName(from appDirectory: String) -> String? {
+        // Extract the .app name from the path
+        // e.g., "/path/to/Payload/ProfisPartner.app" -> "ProfisPartner"
+        let url = URL(fileURLWithPath: appDirectory)
+        let appNameWithExtension = url.lastPathComponent  // "ProfisPartner.app"
+        
+        // Remove the .app extension
+        if appNameWithExtension.hasSuffix(".app") {
+            return String(appNameWithExtension.dropLast(4))  // Remove ".app"
+        }
+        
+        return nil
+    }
+    
+    private func parseInfoPlist(at path: String, appModuleName: String?) throws -> AppInfo? {
         let url = URL(fileURLWithPath: path)
         
         guard let data = try? Data(contentsOf: url),
@@ -49,6 +66,7 @@ struct AppInfoService {
         
         return AppInfo(
             appName: appName,
+            appModuleName: appModuleName,
             version: version,
             buildNumber: buildNumber,
             bundleIdentifier: bundleIdentifier

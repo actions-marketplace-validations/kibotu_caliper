@@ -125,6 +125,9 @@ struct Caliper: ParsableCommand {
             ownershipService.assignOwners(to: appSizeReport, using: ownershipEntries)
         }
         
+        // Automatically tag the app module as internal with owner 'App'
+        ownershipService.tagAppModule(in: appSizeReport, appInfo: appInfo)
+        
         // Generate JSON output (always to report.json)
         ProgressReporter.section("Generating JSON output...")
         let jsonOutputPath = "report.json"

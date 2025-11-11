@@ -158,6 +158,20 @@ struct IPAParser {
             }
         }
         
+        // Try main app (.app directory, but not within a framework or bundle)
+        if filePath.contains(".app/") && 
+           !filePath.contains(".framework/") && 
+           !filePath.contains(".bundle/") {
+            // Extract the .app name
+            if let appRange = filePath.range(of: ".app/") {
+                let beforeApp = filePath[..<appRange.lowerBound]
+                if let lastSlash = beforeApp.lastIndex(of: "/") {
+                    let appName = String(beforeApp[beforeApp.index(after: lastSlash)...])
+                    return appName
+                }
+            }
+        }
+        
         return nil
     }
     
@@ -179,6 +193,18 @@ struct IPAParser {
                     return String(fullBundleName[..<underscoreIndex])
                 }
                 return fullBundleName
+            }
+        }
+        
+        // Extract app name (.app directory, but not within a framework or bundle)
+        if filePath.contains(".app/") && 
+           !filePath.contains(".framework/") && 
+           !filePath.contains(".bundle/") {
+            if let appRange = filePath.range(of: ".app/") {
+                let beforeApp = filePath[..<appRange.lowerBound]
+                if let lastSlash = beforeApp.lastIndex(of: "/") {
+                    return String(beforeApp[beforeApp.index(after: lastSlash)...])
+                }
             }
         }
         

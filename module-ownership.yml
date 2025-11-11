@@ -8,6 +8,9 @@
 # Important: Module names in report.json remain unchanged (e.g., "ProfisPartnerCore").
 # The owner field is added for grouping/categorization purposes.
 #
+# Note: The main app module is automatically tagged with owner='App' and internal=true
+# based on the IPA's Info.plist. You can override this by explicitly configuring it here.
+#
 # Example entries:
 
 # Match all modules with "ProfisPartnerCore" in the name and assign to "Core" owner
