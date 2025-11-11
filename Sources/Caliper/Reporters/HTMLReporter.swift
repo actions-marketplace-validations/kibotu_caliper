@@ -935,7 +935,7 @@ struct HTMLReporter {
                 .text('Install size');
         }
         
-        function populateOwnerDropdown() {
+        function populateOwnerDropdown(autoSelectApp = false) {
             const dropdown = document.getElementById('ownerDropdown');
             
             if (ownershipData.length === 0) {
@@ -968,12 +968,24 @@ struct HTMLReporter {
             const sortedEntries = [...regularEntries, ...othersEntries];
             
             // Populate dropdown
+            let appOwnerIndex = null;
             sortedEntries.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.index;
                 option.textContent = item.owner.name;
                 dropdown.appendChild(option);
+                
+                // Track "App" owner for auto-selection
+                if (item.owner.name === 'App') {
+                    appOwnerIndex = item.index;
+                }
             });
+            
+            // Auto-select "App" owner if it exists and autoSelectApp is true
+            if (autoSelectApp && appOwnerIndex !== null) {
+                dropdown.value = appOwnerIndex;
+                renderOwnerDetails(appOwnerIndex);
+            }
         }
         
         function renderOwnerDetails(ownerIndex) {
@@ -1146,7 +1158,7 @@ struct HTMLReporter {
         renderModules();
         ownershipData = prepareOwnershipData(currentOwnershipSort);
         renderOwnershipChart();
-        populateOwnerDropdown();
+        populateOwnerDropdown(true); // Auto-select "App" on initial page load
         
         // Initialize Insights tab when it's shown
         document.querySelectorAll('.tab').forEach(tab => {

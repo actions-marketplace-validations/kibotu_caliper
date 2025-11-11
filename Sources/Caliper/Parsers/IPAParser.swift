@@ -245,10 +245,13 @@ struct IPAParser {
             
         default:
             // Check if it's the main binary
-            if let container = containerName, filePath.hasSuffix(container) {
+            let isMainBinary = containerName != nil && filePath.hasSuffix(containerName!)
+            if isMainBinary {
                 moduleSize.binarySize = compressedSize
+                // Don't add the main binary to top files - it's already analyzed via linkmap
+            } else {
+                moduleSize.addToTop(file: filePath, size: compressedSize)
             }
-            moduleSize.addToTop(file: filePath, size: compressedSize)
         }
     }
 }
