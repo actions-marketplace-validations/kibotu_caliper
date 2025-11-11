@@ -10,8 +10,8 @@ release:
 
 # Install to /usr/local/bin
 install: release
-	@echo "Installing Caliper to /usr/local/bin..."
-	@cp .build/release/Caliper /usr/local/bin/caliper
+	@echo "Installing caliper to /usr/local/bin..."
+	@cp .build/release/caliper /usr/local/bin/caliper
 	@echo "✅ Installation complete! Run 'caliper --help' to get started."
 
 # Clean build artifacts
@@ -21,7 +21,7 @@ clean:
 
 # Show help
 help: build
-	.build/debug/Caliper --help
+	.build/debug/caliper --help
 
 # Format code (requires swift-format)
 format:
@@ -46,7 +46,7 @@ analyze: release
 		exit 1; \
 	fi
 	@OUTPUT=$${OUTPUT:-report.json}; \
-	CMD=".build/release/Caliper --ipa-path $(IPA_PATH) --output $$OUTPUT"; \
+	CMD=".build/release/caliper --ipa-path $(IPA_PATH) --output $$OUTPUT"; \
 	if [ -n "$(LINK_MAP_PATH)" ]; then CMD="$$CMD --link-map-path $(LINK_MAP_PATH)"; fi; \
 	if [ -n "$(OWNERSHIP_FILE)" ]; then CMD="$$CMD --ownership-file $(OWNERSHIP_FILE) --group-by-owner"; fi; \
 	if [ -n "$(FILTER_OWNER)" ]; then CMD="$$CMD --filter-owner $(FILTER_OWNER)"; fi; \
@@ -70,7 +70,7 @@ example: release
 		echo "Usage: make example IPA_PATH=path/to/app.ipa"; \
 		exit 1; \
 	fi
-	@CMD=".build/release/Caliper --ipa-path $(IPA_PATH)"; \
+	@CMD=".build/release/caliper --ipa-path $(IPA_PATH)"; \
 	if [ -n "$(LINK_MAP_PATH)" ]; then CMD="$$CMD --link-map-path $(LINK_MAP_PATH)"; fi; \
 	if [ -n "$(OWNERSHIP_FILE)" ]; then CMD="$$CMD --ownership-file $(OWNERSHIP_FILE) --group-by-owner"; fi; \
 	if [ -n "$(FILTER_OWNER)" ]; then CMD="$$CMD --filter-owner $(FILTER_OWNER)"; fi; \

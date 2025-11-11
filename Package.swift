@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Caliper",
+    name: "caliper",
     platforms: [
         .macOS(.v13)
     ],
@@ -14,7 +14,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Caliper",
+            name: "caliper",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Yams", package: "Yams")

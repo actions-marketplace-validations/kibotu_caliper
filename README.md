@@ -11,7 +11,7 @@ Analyze iOS app bundle sizes, track module ownership, and generate detailed size
 swift build -c release
 
 # Analyze IPA with all features
-.build/release/Caliper \
+.build/release/caliper \
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
   --ownership-file module-ownership.yml \
@@ -39,14 +39,14 @@ git clone https://github.com/kibotu/caliper.git
 cd caliper
 swift build -c release
 
-# Binary will be at: .build/release/Caliper
+# Binary will be at: .build/release/caliper
 ```
 
 ### System-wide Install
 
 ```bash
 make install
-# Installs to /usr/local/bin/Caliper
+# Installs to /usr/local/bin/caliper
 ```
 
 ### Swift Mint
@@ -70,7 +70,7 @@ caliper --ipa-path MyApp.ipa
 Minimum required input - analyzes bundle structure and resources:
 
 ```bash
-.build/release/Caliper --ipa-path MyApp.ipa
+.build/release/caliper --ipa-path MyApp.ipa
 ```
 
 ### With Binary Size Data
@@ -78,7 +78,7 @@ Minimum required input - analyzes bundle structure and resources:
 Add LinkMap for accurate per-module binary sizes:
 
 ```bash
-.build/release/Caliper \
+.build/release/caliper \
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt
 ```
@@ -90,12 +90,14 @@ Add LinkMap for accurate per-module binary sizes:
 4. Build your app
 5. Find LinkMap at: `~/Library/Developer/Xcode/DerivedData/YourApp-xxx/Build/Intermediates.noindex/YourApp.build/Release-iphoneos/YourApp.build/YourApp-LinkMap-normal-arm64.txt`
 
+[![Screenshot](docs/xcode-link-map.png)](docs/xcode-link-map.png)
+
 ### With Module Ownership
 
 Track which team owns which modules:
 
 ```bash
-.build/release/Caliper \
+.build/release/caliper \
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
   --ownership-file module-ownership.yml
@@ -131,7 +133,7 @@ Track which team owns which modules:
 Include Swift package version information:
 
 ```bash
-.build/release/Caliper \
+.build/release/caliper \
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
   --package-resolved-path Package.resolved
@@ -146,7 +148,7 @@ Include Swift package version information:
 For namespaced packages (e.g., internal packages):
 
 ```bash
-.build/release/Caliper \
+.build/release/caliper \
   --ipa-path MyApp.ipa \
   --link-map-path MyApp-LinkMap.txt \
   --package-resolved-path Package.resolved \
@@ -279,7 +281,7 @@ pipeline {
                 
                 // Run analysis
                 sh '''
-                    caliper/.build/release/Caliper \
+                    caliper/.build/release/caliper \
                         --ipa-path build/MyApp.ipa \
                         --link-map-path build/LinkMap.txt \
                         --ownership-file config/module-ownership.yml \
@@ -367,7 +369,7 @@ jobs:
       
       - name: Analyze App Size
         run: |
-          caliper/.build/release/Caliper \
+          caliper/.build/release/caliper \
             --ipa-path build/MyApp.ipa \
             --link-map-path build/LinkMap.txt \
             --ownership-file config/module-ownership.yml \
