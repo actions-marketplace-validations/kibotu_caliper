@@ -33,7 +33,8 @@ chmod +x build.sh
 ../.build/release/caliper \
   --ipa-path build/CaliperSampleApp.ipa  \
   --link-map-path build/CaliperSampleApp-LinkMap.txt \
-  --package-resolved-path CaliperSampleApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved 
+  --package-resolved-path CaliperSampleApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+  --ownership-file module-ownership.yml
 ```
 
 

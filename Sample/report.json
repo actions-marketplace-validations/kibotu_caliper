@@ -93,11 +93,6 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "Array",
-          "size" : 40,
-          "symbolCount" : 1
-        },
-        {
           "fileName" : "Dictionary",
           "size" : 40,
           "symbolCount" : 1
@@ -108,12 +103,12 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "_convertNSErrorToError",
-          "size" : 20,
+          "fileName" : "Array",
+          "size" : 40,
           "symbolCount" : 1
         },
         {
-          "fileName" : "_NSRange",
+          "fileName" : "Range< where A == Swift",
           "size" : 20,
           "symbolCount" : 1
         },
@@ -123,7 +118,12 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "Range< where A == Swift",
+          "fileName" : "_convertNSErrorToError",
+          "size" : 20,
+          "symbolCount" : 1
+        },
+        {
+          "fileName" : "_NSRange",
           "size" : 20,
           "symbolCount" : 1
         }
@@ -238,19 +238,21 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "SetAlgebra",
+          "fileName" : "OptionSet",
           "size" : 8,
           "symbolCount" : 1
         },
         {
-          "fileName" : "OptionSet",
+          "fileName" : "SetAlgebra",
           "size" : 8,
           "symbolCount" : 1
         }
       ],
       "imageFileSize" : 0,
       "imageSize" : 0,
+      "internal" : true,
       "name" : "Orchard",
+      "owner" : "App",
       "proguard" : 39119,
       "resources" : {
 
@@ -529,12 +531,12 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "Hasher",
+          "fileName" : "CommandLine",
           "size" : 40,
           "symbolCount" : 1
         },
         {
-          "fileName" : "CommandLine",
+          "fileName" : "Hasher",
           "size" : 40,
           "symbolCount" : 1
         },
@@ -549,7 +551,7 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "CustomStringConvertible",
+          "fileName" : "Character",
           "size" : 20,
           "symbolCount" : 1
         },
@@ -559,12 +561,12 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "Character",
+          "fileName" : "DefaultStringInterpolation",
           "size" : 20,
           "symbolCount" : 1
         },
         {
-          "fileName" : "DefaultStringInterpolation",
+          "fileName" : "CustomStringConvertible",
           "size" : 20,
           "symbolCount" : 1
         }
@@ -664,7 +666,7 @@
       "binarySize" : 2588,
       "files" : [
         {
-          "fileName" : "CustomStringConvertible",
+          "fileName" : "Orchard",
           "size" : 0,
           "symbolCount" : 1
         },
@@ -674,12 +676,12 @@
           "symbolCount" : 1
         },
         {
-          "fileName" : "Orchard",
+          "fileName" : "ConsoleLogger",
           "size" : 0,
           "symbolCount" : 1
         },
         {
-          "fileName" : "ConsoleLogger",
+          "fileName" : "CustomStringConvertible",
           "size" : 0,
           "symbolCount" : 1
         }
