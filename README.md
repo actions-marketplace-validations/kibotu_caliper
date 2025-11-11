@@ -6,6 +6,32 @@
 
 Analyze iOS app bundle sizes, track module ownership, and generate detailed size reports. Helps iOS teams monitor and optimize app size metrics for App Store submissions and performance tracking.
 
+## Screenshots
+
+<p align="center">
+  <a href="docs/breakdown.png">
+    <img src="docs/breakdown.png" alt="Module Size Breakdown" height="400">
+  </a>
+  <br>
+  <em>Module Size Breakdown - Interactive view of all modules with size metrics</em>
+</p>
+
+<p align="center">
+  <a href="docs/insights.png">
+    <img src="docs/insights.png" alt="Size Insights" height="400">
+  </a>
+  <br>
+  <em>Size Insights - Detailed analysis with filtering and sorting</em>
+</p>
+
+<p align="center">
+  <a href="docs/ownership.png">
+    <img src="docs/ownership.png" alt="Module Ownership" height="400">
+  </a>
+  <br>
+  <em>Module Ownership - Team-based size tracking and accountability</em>
+</p>
+
 ## Quick Start
 
 ```bash
