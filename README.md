@@ -1,10 +1,12 @@
-# Caliper
+# Caliper 
 
 [![Build](https://github.com/kibotu/caliper/actions/workflows/build.yml/badge.svg)](https://github.com/kibotu/caliper/actions/workflows/build.yml) [![GitHub Release](https://img.shields.io/github/v/release/kibotu/caliper)](https://github.com/kibotu/caliper/releases)
 [![Static Badge](https://img.shields.io/badge/iOS-26-blue)](https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-26-release-notes)
 [![Static Badge](https://img.shields.io/badge/Swift%206.0%20-%20orange)](https://www.swift.org/blog/announcing-swift-6/)
 
 **Your iOS app's size under control.** Caliper analyzes bundle sizes down to the module level, tracks team ownership, and generates beautiful interactive reports. Know exactly what's taking up space, who owns it, and where to optimize—all from a single command.
+
+## [Demo HTML report](https://kibotu.github.io/caliper/)
 
 <table>
   <tr>
