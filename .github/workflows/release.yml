@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Verify build
+        run: |
+          echo "Build completed successfully!"
+          ls -la .build/release/
+          .build/release/caliper --version || echo "Version command not available"
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Caliper ${{ steps.version.outputs.VERSION }}
+            
+            ### Installation
+            
+            **Using Mint:**
+            ```bash
+            mint install kibotu/caliper@${{ steps.version.outputs.VERSION }}
+            ```
+            
+            **Manual build:**
+            ```bash
+            git clone https://github.com/kibotu/caliper.git
+            cd caliper
+            git checkout ${{ steps.version.outputs.VERSION }}
+            swift build -c release
+            ```
+            
+            ### Changes
+            See commit history for details.
+          files: |
+            .build/release/caliper
+          draft: false
+          prerelease: false
+
