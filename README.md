@@ -477,6 +477,80 @@ xcrun --sdk iphoneos assetutil --version 2>/dev/null && echo "✅ assetutil avai
 - **Swift** 6.0 or later
 - **Xcode Command Line Tools** (includes unzip, xcrun, assetutil)
 
+
+### Pre-Flight Checklist
+
+Before diving into analysis, make sure you have the right build configuration. Here's a quick checklist to maximize the value you'll get from Caliper:
+
+**Build Settings (for Release configuration):**
+- [ ] `LD_GENERATE_MAP_FILE` = `YES` (enables LinkMap)
+- [ ] `DEAD_CODE_STRIPPING` = `YES` (removes unused code)
+- [ ] `STRIP_INSTALLED_PRODUCT` = `YES` (strips debug symbols)
+- [ ] `STRIP_SWIFT_SYMBOLS` = `YES` (removes reflection metadata)
+- [ ] `SWIFT_OPTIMIZATION_LEVEL` = `-Osize` (if size > speed)
+- [ ] Build configuration = **Release** (Debug builds are much larger!)
+
+**Build Command:**
+- [ ] Using `CODE_SIGNING_REQUIRED=NO` for faster CI builds
+- [ ] Building with `ONLY_ACTIVE_ARCH=NO` to include all architectures
+- [ ] Using `-sdk iphoneos` (not simulator)
+
+**Optional but Valuable:**
+- [ ] Create `module-ownership.yml` to map modules to teams
+- [ ] Create `package-name-mapping.yml` if you use forked dependencies
+- [ ] Save Package.resolved for version tracking
+
+### Common Issues & Solutions
+
+**"I can't find the LinkMap file!"**
+- Make sure you built with **Release** configuration (not Debug)
+- Check that `LD_GENERATE_MAP_FILE` is set to `YES` in Build Settings
+- Clean your build folder and rebuild to ensure it generates fresh
+- Use this command to locate it: `find ~/Library/Developer/Xcode/DerivedData -name "*LinkMap-normal-arm64.txt" -type f`
+- The path varies between regular builds and archives—check both locations mentioned earlier
+- Verify you're building for device (`-sdk iphoneos`), not simulator
+
+**"My build fails with code signing errors"**
+- If using unsigned builds, check for required entitlements (HealthKit, Apple Pay, iCloud, etc.)
+- These entitlements require proper code signing—you can't skip it
+- Options:
+  1. Create a separate "size-analysis" scheme without these entitlements
+  2. Use proper code signing (slower but necessary)
+  3. Temporarily remove the capabilities for analysis builds
+
+**"My binary size seems wrong or too small"**
+- LinkMap only shows compiled code, not resources or embedded frameworks
+- Make sure you're analyzing arm64 (device), not x86_64/arm64 (simulator)
+- Debug builds are 2-3x larger than Release—always use Release for analysis
+- If the number seems too small, you might be missing dynamic frameworks
+- Universal builds include multiple architectures—check you're analyzing the right one
+
+**"Asset sizes don't match what I expect"**
+- Asset catalog sizes shown by `assetutil` are **uncompressed** (installed size on device)
+- IPA sizes are **compressed** (download size from App Store)
+- Both numbers are correct, they just measure different things
+- App Thinning further reduces what users actually download
+- Example: 50 MB assets → 30 MB in IPA → 20 MB after thinning for specific device
+
+**"Modules aren't matching teams in the ownership report"**
+- Check your `module-ownership.yml` patterns—are they specific enough?
+- Module names might not match what you expect—check the report to see actual names first
+- Wildcards are your friend: `*Feature*` is more forgiving than exact matches
+- Order matters: more specific patterns should come before generic ones
+- SPM packages often have different module names than repository names
+
+**"The HTML report won't open or looks broken"**
+- Make sure you're opening `report.html` in a modern browser (Chrome, Firefox, Safari)
+- Check that `report.json` exists in the same directory
+- Some browsers block local file access—try hosting it with `python3 -m http.server` and open via localhost
+- If the JSON is very large (>50 MB), it might be slow to load—be patient
+
+**"Caliper crashes or hangs"**
+- Very large LinkMap files (>500 MB) can be slow to parse—give it time
+- Make sure you have enough RAM (LinkMap parsing can use 2-3 GB for large apps)
+- Check that your input files aren't corrupted (try opening them manually)
+- If analyzing a massive app (>1 GB), expect analysis to take several minutes
+
 ## Troubleshooting
 
 ### "assetutil not found" or .car parsing fails
