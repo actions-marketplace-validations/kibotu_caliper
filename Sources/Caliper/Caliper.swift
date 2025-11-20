@@ -26,6 +26,8 @@ struct Caliper: ParsableCommand {
     // MARK: - Main Execution
     
     func run() throws {
+        ProgressReporter.section("🔧 Initializing Caliper...")
+        
         // Initialize services
         let (ipaService, appInfoService) = (IPAService(), AppInfoService())
         let (ipaParser, linkMapParser, packageResolvedParser) = (IPAParser(), LinkMapParser(), PackageResolvedParser())
@@ -33,6 +35,7 @@ struct Caliper: ParsableCommand {
         let (sizeCalculator, jsonReporter, htmlReporter) = (SizeCalculator(), JSONReporter(), HTMLReporter())
         
         // Verify IPA exists
+        ProgressReporter.message("Verifying IPA file: \(ipaPath)")
         try ipaService.verifyIPAExists(at: ipaPath)
         
         // Generate unzipped path (always auto-generate and cleanup)
@@ -69,6 +72,7 @@ struct Caliper: ParsableCommand {
         )
         
         // Generate report from IPA
+        ProgressReporter.section("📋 Analyzing IPA contents...")
         let report = try ipaParser.generateReport(ipaPath: ipaPath)
         
         // Build app size report
@@ -80,7 +84,8 @@ struct Caliper: ParsableCommand {
         
         // Parse LinkMap if provided
         if let linkMapPath = linkMapPath {
-            ProgressReporter.section("Parsing LinkMap file...")
+            ProgressReporter.section("📊 Parsing LinkMap file...")
+            ProgressReporter.message("LinkMap path: \(linkMapPath)")
             let linkMapDetails = try linkMapParser.parseDetailed(linkMapPath: linkMapPath)
             ProgressReporter.message("Found \(linkMapDetails.moduleSizes.count) modules in LinkMap")
             
@@ -88,41 +93,56 @@ struct Caliper: ParsableCommand {
             let totalFiles = linkMapDetails.fileDetails.values.reduce(0) { $0 + $1.count }
             ProgressReporter.message("Found \(totalFiles) source files across all modules")
             
+            ProgressReporter.message("Updating binary sizes...")
             sizeCalculator.updateBinarySizesDetailed(
                 in: &appSizeReport,
                 moduleMapping: moduleMapping,
                 linkMapDetails: linkMapDetails
             )
+            ProgressReporter.success("Binary sizes updated from LinkMap")
         }
         
         // Calculate total sizes
+        ProgressReporter.section("📏 Calculating total sizes...")
         let totalSize = try sizeCalculator.calculateTotalSize(
             ipaPath: ipaPath,
             unzippedPath: unzippedPath
         )
+        ProgressReporter.message("Total IPA size: \(totalSize.packageSize) bytes")
+        ProgressReporter.message("Total install size: \(totalSize.installSize) bytes")
         
         // Parse Package.resolved if provided
         if let packageResolvedPath = packageResolvedPath {
             ProgressReporter.section("📦 Parsing Package.resolved file...")
+            ProgressReporter.message("Package.resolved path: \(packageResolvedPath)")
             let versionMapping = try packageResolvedParser.parse(path: packageResolvedPath)
+            ProgressReporter.message("Found \(versionMapping.count) package versions")
             
             // Load package name mapping if provided
             let packageNameMapping: [String: String]? = try packageMappingFile.map { mappingPath in
                 ProgressReporter.section("🔗 Loading package name mappings...")
+                ProgressReporter.message("Mapping file: \(mappingPath)")
                 let mappings = try packageMappingService.loadMappingFile(from: mappingPath)
-                return packageMappingService.buildMappingDictionary(from: mappings)
+                let dict = packageMappingService.buildMappingDictionary(from: mappings)
+                ProgressReporter.message("Loaded \(dict.count) package name mappings")
+                return dict
             }
             
+            ProgressReporter.message("Assigning versions to modules...")
             versionService.assignVersions(
                 to: appSizeReport,
                 using: versionMapping,
                 packageNameMapping: packageNameMapping
             )
+            ProgressReporter.success("Package versions assigned")
         }
         
         // Assign owners to modules
         if !ownershipEntries.isEmpty {
+            ProgressReporter.section("👥 Assigning module ownership...")
+            ProgressReporter.message("Using \(ownershipEntries.count) ownership rules")
             ownershipService.assignOwners(to: appSizeReport, using: ownershipEntries)
+            ProgressReporter.success("Module ownership assigned")
         }
         
         // Automatically tag the app module as internal with owner 'App'

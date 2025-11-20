@@ -4,6 +4,10 @@ import Foundation
 struct AssetCatalogParser {
     /// Parse an asset catalog file and add the results to the module
     func parse(filePath: String, moduleSize: ModuleSize) throws {
+        // Breadcrumb: Starting .car file parsing
+        let fileName = (filePath as NSString).lastPathComponent
+        fputs("    [assetutil] Starting parse of \(fileName)...\n", stderr)
+        
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         process.arguments = ["--sdk", "iphoneos", "assetutil", "--info", filePath]
@@ -35,6 +39,7 @@ struct AssetCatalogParser {
         do {
             try process.run()
         } catch {
+            fputs("    [assetutil] ⚠️  Failed to start: \(error)\n", stderr)
             throw CaliperError.assetCatalogParsingFailed("Failed to start assetutil: \(error)")
         }
         
@@ -54,20 +59,25 @@ struct AssetCatalogParser {
         if process.isRunning {
             process.terminate()
             Thread.sleep(forTimeInterval: 0.2)
+            fputs("    [assetutil] ⚠️  Timed out after \(Int(timeout))s\n", stderr)
             throw CaliperError.assetCatalogParsingFailed("assetutil timed out after \(Int(timeout))s")
         }
         
         // Check exit code
         guard process.terminationStatus == 0 else {
             let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            fputs("    [assetutil] ⚠️  Failed with exit code \(process.terminationStatus): \(errorOutput)\n", stderr)
             throw CaliperError.assetCatalogParsingFailed("assetutil failed (exit: \(process.terminationStatus)): \(errorOutput)")
         }
         
         guard let output = String(data: outputData, encoding: .utf8) else {
+            fputs("    [assetutil] ⚠️  Failed to decode output\n", stderr)
             throw CaliperError.assetCatalogParsingFailed("Failed to decode assetutil output")
         }
         
+        fputs("    [assetutil] Parsing output...\n", stderr)
         try parseAssetOutput(output, moduleSize: moduleSize)
+        fputs("    [assetutil] ✅ Completed\n", stderr)
     }
     
     // MARK: - Private Methods

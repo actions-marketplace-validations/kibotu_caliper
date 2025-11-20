@@ -42,19 +42,32 @@ struct LinkMapParser {
     
     /// Parse a LinkMap file and return detailed module and file sizes
     func parseDetailed(linkMapPath: String) throws -> LinkMapDetails {
+        fputs("  [LinkMap] Reading file...\n", stderr)
         var details = LinkMapDetails()
         var fileIndices: [String: FileInfo] = [:]
         
         let content = try readLinkMapFile(at: linkMapPath)
         let lines = content.components(separatedBy: .newlines)
         
+        fputs("  [LinkMap] Parsing \(lines.count) lines...\n", stderr)
         var currentSection = ""
+        var filesCount = 0
+        var symbolsCount = 0
+        var lastProgressUpdate = 0
         
-        for line in lines {
+        for (index, line) in lines.enumerated() {
+            // Progress breadcrumb every 10%
+            let progress = (index * 100) / lines.count
+            if progress >= lastProgressUpdate + 10 && progress > 0 {
+                lastProgressUpdate = progress
+                fputs("  [LinkMap] Progress: \(progress)% (\(index)/\(lines.count) lines, \(filesCount) files, \(symbolsCount) symbols)\n", stderr)
+            }
+            
             if line.hasPrefix("#") {
                 let newSection = identifySection(from: line)
                 if !newSection.isEmpty {
                     currentSection = newSection
+                    fputs("  [LinkMap] Entering section: \(newSection)\n", stderr)
                 }
                 continue
             }
@@ -62,33 +75,50 @@ struct LinkMapParser {
             switch currentSection {
             case "files":
                 parseFileLine(line: line, fileIndices: &fileIndices)
+                filesCount = fileIndices.count
             case "symbols":
                 parseSymbolLine(line: line, fileIndices: fileIndices, details: &details)
+                symbolsCount += 1
             default:
                 break
             }
         }
         
+        fputs("  [LinkMap] Completed: \(filesCount) files, \(symbolsCount) symbols, \(details.moduleSizes.count) modules\n", stderr)
         return details
     }
     
     // MARK: - Private Methods
     
     private func readLinkMapFile(at path: String) throws -> String {
+        // Breadcrumb: Check file size
+        let fileURL = URL(fileURLWithPath: path)
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+           let fileSize = attrs[.size] as? Int64 {
+            let sizeMB = Double(fileSize) / 1024.0 / 1024.0
+            fputs("  [LinkMap] File size: \(String(format: "%.2f", sizeMB)) MB\n", stderr)
+            if sizeMB > 100 {
+                fputs("  [LinkMap] ⚠️  Large file detected, this may take a while...\n", stderr)
+            }
+        }
+        
         // Try reading with UTF-8, fallback to ASCII, then ISO Latin 1
         if let content = try? String(contentsOfFile: path, encoding: .utf8) {
             return content
         }
         
+        fputs("  [LinkMap] UTF-8 failed, trying ASCII...\n", stderr)
         if let content = try? String(contentsOfFile: path, encoding: .ascii) {
             return content
         }
         
+        fputs("  [LinkMap] ASCII failed, trying ISO Latin 1...\n", stderr)
         // Last resort: read as data and convert
-        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let data = try Data(contentsOf: fileURL)
         guard let content = String(data: data, encoding: .utf8) ??
                            String(data: data, encoding: .ascii) ??
                            String(data: data, encoding: .isoLatin1) else {
+            fputs("  [LinkMap] ❌ Cannot read file with any known encoding\n", stderr)
             throw CaliperError.linkMapParsingFailed("Cannot read file with any known encoding")
         }
         

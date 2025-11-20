@@ -13,11 +13,24 @@ struct IPAParser {
         let pipe = Pipe()
         process.standardOutput = pipe
         
+        // Accumulate output data asynchronously to prevent buffer blocking
+        // Using nonisolated(unsafe) for Swift 6 concurrency: handlers are cleaned up before data access
+        nonisolated(unsafe) var outputData = Data()
+        
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let availableData = handle.availableData
+            if !availableData.isEmpty {
+                outputData.append(availableData)
+            }
+        }
+        
         try process.run()
         process.waitUntilExit()
         
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else {
+        // Clean up handler
+        pipe.fileHandleForReading.readabilityHandler = nil
+        
+        guard let output = String(data: outputData, encoding: .utf8) else {
             throw CaliperError.unzipFailed
         }
         
@@ -138,7 +151,12 @@ struct IPAParser {
             let beforeFramework = filePath[..<frameworkRange.lowerBound]
             if let lastSlash = beforeFramework.lastIndex(of: "/") {
                 let containerName = String(beforeFramework[beforeFramework.index(after: lastSlash)...])
-                return moduleMapping[containerName] ?? containerName
+                let moduleName = moduleMapping[containerName] ?? containerName
+                // Breadcrumb: Log first few framework discoveries for debugging
+                if arc4random_uniform(1000) == 0 { // Log ~0.1% of frameworks
+                    fputs("  [Framework] \(containerName) -> \(moduleName)\n", stderr)
+                }
+                return moduleName
             }
         }
         
@@ -154,7 +172,12 @@ struct IPAParser {
                 } else {
                     containerName = fullBundleName
                 }
-                return moduleMapping[containerName] ?? containerName
+                let moduleName = moduleMapping[containerName] ?? containerName
+                // Breadcrumb: Log first few bundle discoveries for debugging
+                if arc4random_uniform(1000) == 0 { // Log ~0.1% of bundles
+                    fputs("  [Bundle] \(fullBundleName) -> \(moduleName)\n", stderr)
+                }
+                return moduleName
             }
         }
         
@@ -241,13 +264,21 @@ struct IPAParser {
             
         case "car":
             let fullPath = "\(unzippedPath)/\(filePath)"
-            try? assetCatalogParser.parse(filePath: fullPath, moduleSize: moduleSize)
+            // Breadcrumb: Log .car file processing
+            fputs("  [Asset Catalog] Processing: \(filePath)\n", stderr)
+            do {
+                try assetCatalogParser.parse(filePath: fullPath, moduleSize: moduleSize)
+            } catch {
+                fputs("  [Asset Catalog] ⚠️  Failed to parse \(filePath): \(error)\n", stderr)
+            }
             
         default:
             // Check if it's the main binary
             let isMainBinary = containerName != nil && filePath.hasSuffix(containerName!)
             if isMainBinary {
                 moduleSize.binarySize = compressedSize
+                // Breadcrumb: Log main binary detection
+                fputs("  [Binary] Detected main binary: \(containerName ?? "unknown") (\(compressedSize) bytes)\n", stderr)
                 // Don't add the main binary to top files - it's already analyzed via linkmap
             } else {
                 moduleSize.addToTop(file: filePath, size: compressedSize)
