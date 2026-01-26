@@ -1,0 +1,101 @@
+name: Example - Caliper Action Usage
+
+on:
+  workflow_dispatch:
+  # Uncomment to run on pull requests
+  # pull_request:
+  #   branches: [main]
+
+jobs:
+  analyze-app-size:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout your app repository
+        uses: actions/checkout@v4
+      
+      # Your app build steps here
+      # - name: Build iOS App
+      #   run: |
+      #     xcodebuild -workspace MyApp.xcworkspace \
+      #       -scheme MyApp \
+      #       -configuration Release \
+      #       -archivePath build/MyApp.xcarchive \
+      #       archive
+      #     
+      #     xcodebuild -exportArchive \
+      #       -archivePath build/MyApp.xcarchive \
+      #       -exportPath build \
+      #       -exportOptionsPlist ExportOptions.plist
+      
+      - name: Analyze App Size with Caliper
+        uses: kibotu/caliper@main
+        with:
+          ipa-path: 'build/MyApp.ipa'
+          link-map-path: 'build/MyApp-LinkMap.txt'
+          ownership-file: 'config/module-ownership.yml'
+          package-resolved-path: 'MyApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
+      
+      - name: Upload Size Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliper-reports
+          path: |
+            report.json
+            report.html
+          retention-days: 90
+      
+      - name: Comment PR with Size Report
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('report.json', 'utf8'));
+            const sizeMB = (report.totalPackageSize / 1024 / 1024).toFixed(2);
+            const installMB = (report.totalInstallSize / 1024 / 1024).toFixed(2);
+            const moduleCount = Object.keys(report.modules).length;
+            
+            // Find largest modules
+            const modules = Object.values(report.modules)
+              .sort((a, b) => b.proguard - a.proguard)
+              .slice(0, 5);
+            
+            let moduleList = modules.map(m => {
+              const sizeMB = (m.proguard / 1024 / 1024).toFixed(2);
+              return `- **${m.name}**: ${sizeMB} MB`;
+            }).join('\n');
+            
+            const body = `## 📊 App Size Report
+            
+            | Metric | Value |
+            |--------|-------|
+            | **IPA Size** | ${sizeMB} MB |
+            | **Install Size** | ${installMB} MB |
+            | **Modules** | ${moduleCount} |
+            
+            ### 📦 Top 5 Largest Modules
+            ${moduleList}
+            
+            [📄 View detailed HTML report](../actions/runs/${context.runId})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+      
+      - name: Check Size Threshold
+        run: |
+          PACKAGE_SIZE=$(grep -o '"totalPackageSize":[0-9]*' report.json | cut -d':' -f2)
+          MAX_SIZE=$((100 * 1024 * 1024))  # 100 MB threshold
+          
+          if [ "$PACKAGE_SIZE" -gt "$MAX_SIZE" ]; then
+            PACKAGE_MB=$(echo "scale=2; $PACKAGE_SIZE / 1024 / 1024" | bc)
+            MAX_MB=$(echo "scale=2; $MAX_SIZE / 1024 / 1024" | bc)
+            echo "❌ App size ${PACKAGE_MB} MB exceeds threshold ${MAX_MB} MB"
+            exit 1
+          else
+            echo "✅ App size within acceptable limits"
+          fi

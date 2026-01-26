@@ -1,0 +1,92 @@
+name: Test Action
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'action.yml'
+      - '.github/workflows/test-action.yml'
+
+jobs:
+  test-action:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build Sample App
+        working-directory: Sample
+        run: |
+          echo "🚀 Building Sample App..."
+          chmod +x build.sh
+          ./build.sh
+      
+      - name: Test Caliper Action (Local)
+        uses: ./
+        with:
+          ipa-path: 'Sample/build/CaliperSampleApp.ipa'
+          link-map-path: 'Sample/build/CaliperSampleApp-LinkMap.txt'
+          ownership-file: 'Sample/module-ownership.yml'
+          package-resolved-path: 'Sample/CaliperSampleApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
+      
+      - name: Verify Reports Generated
+        run: |
+          echo "📋 Verifying reports..."
+          
+          if [ ! -f "report.json" ]; then
+            echo "❌ report.json not found"
+            exit 1
+          fi
+          echo "✅ report.json exists"
+          
+          if [ ! -f "report.html" ]; then
+            echo "❌ report.html not found"
+            exit 1
+          fi
+          echo "✅ report.html exists"
+          
+          # Check JSON is valid
+          if ! python3 -m json.tool report.json > /dev/null 2>&1; then
+            echo "❌ report.json is not valid JSON"
+            exit 1
+          fi
+          echo "✅ report.json is valid JSON"
+          
+          # Check for required fields
+          if ! grep -q '"totalPackageSize"' report.json; then
+            echo "❌ totalPackageSize not found in report.json"
+            exit 1
+          fi
+          echo "✅ totalPackageSize found"
+          
+          if ! grep -q '"totalInstallSize"' report.json; then
+            echo "❌ totalInstallSize not found in report.json"
+            exit 1
+          fi
+          echo "✅ totalInstallSize found"
+          
+          echo "🎉 All verifications passed!"
+      
+      - name: Display Report Summary
+        run: |
+          echo "📊 Report Summary:"
+          PACKAGE_SIZE=$(grep -o '"totalPackageSize":[0-9]*' report.json | cut -d':' -f2)
+          INSTALL_SIZE=$(grep -o '"totalInstallSize":[0-9]*' report.json | cut -d':' -f2)
+          MODULE_COUNT=$(grep -o '"name":"[^"]*"' report.json | wc -l)
+          
+          PACKAGE_MB=$(echo "scale=2; $PACKAGE_SIZE / 1024 / 1024" | bc)
+          INSTALL_MB=$(echo "scale=2; $INSTALL_SIZE / 1024 / 1024" | bc)
+          
+          echo "IPA Size: ${PACKAGE_MB} MB"
+          echo "Install Size: ${INSTALL_MB} MB"
+          echo "Modules: ${MODULE_COUNT}"
+      
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-action-reports
+          path: |
+            report.json
+            report.html
+          retention-days: 7

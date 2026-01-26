@@ -1,0 +1,142 @@
+name: 'Caliper - iOS App Size Analyzer'
+description: 'Analyze iOS app bundle sizes down to the module level with beautiful interactive reports'
+author: 'kibotu'
+
+branding:
+  icon: 'pie-chart'
+  color: 'blue'
+
+inputs:
+  ipa-path:
+    description: 'Path to the IPA file to analyze'
+    required: true
+  link-map-path:
+    description: 'Path to LinkMap file for accurate binary sizes'
+    required: false
+  ownership-file:
+    description: 'YAML file with module ownership patterns'
+    required: false
+  package-resolved-path:
+    description: 'Path to Package.resolved for version tracking'
+    required: false
+  package-mapping-file:
+    description: 'YAML file for namespaced package mappings'
+    required: false
+  output-dir:
+    description: 'Directory to output report files (defaults to current directory)'
+    required: false
+    default: '.'
+
+outputs:
+  report-json:
+    description: 'Path to the generated JSON report'
+    value: ${{ steps.analyze.outputs.report-json }}
+  report-html:
+    description: 'Path to the generated HTML report'
+    value: ${{ steps.analyze.outputs.report-html }}
+  total-package-size:
+    description: 'Total IPA size in bytes'
+    value: ${{ steps.analyze.outputs.total-package-size }}
+  total-install-size:
+    description: 'Total installed app size in bytes'
+    value: ${{ steps.analyze.outputs.total-install-size }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify macOS runner
+      shell: bash
+      run: |
+        if [[ "$OSTYPE" != "darwin"* ]]; then
+          echo "❌ Error: Caliper requires macOS runner (uses Xcode tools)"
+          exit 1
+        fi
+        echo "✅ Running on macOS"
+    
+    - name: Verify Xcode tools
+      shell: bash
+      run: |
+        echo "🔍 Checking required tools..."
+        
+        if ! command -v swift &> /dev/null; then
+          echo "❌ Swift not found. Install Xcode Command Line Tools."
+          exit 1
+        fi
+        echo "✅ Swift: $(swift --version | head -n1)"
+        
+        if ! command -v xcrun &> /dev/null; then
+          echo "❌ xcrun not found. Install Xcode Command Line Tools."
+          exit 1
+        fi
+        echo "✅ xcrun available"
+        
+        if ! command -v unzip &> /dev/null; then
+          echo "❌ unzip not found"
+          exit 1
+        fi
+        echo "✅ unzip available"
+    
+    - name: Build Caliper
+      shell: bash
+      run: |
+        echo "🔨 Building Caliper..."
+        cd ${{ github.action_path }}
+        swift build -c release
+        echo "✅ Caliper built successfully"
+    
+    - name: Run Caliper Analysis
+      id: analyze
+      shell: bash
+      run: |
+        echo "📊 Running Caliper analysis..."
+        
+        # Build command with required parameter
+        CMD="${{ github.action_path }}/.build/release/caliper --ipa-path ${{ inputs.ipa-path }}"
+        
+        # Add optional parameters
+        if [ -n "${{ inputs.link-map-path }}" ]; then
+          CMD="$CMD --link-map-path ${{ inputs.link-map-path }}"
+        fi
+        
+        if [ -n "${{ inputs.ownership-file }}" ]; then
+          CMD="$CMD --ownership-file ${{ inputs.ownership-file }}"
+        fi
+        
+        if [ -n "${{ inputs.package-resolved-path }}" ]; then
+          CMD="$CMD --package-resolved-path ${{ inputs.package-resolved-path }}"
+        fi
+        
+        if [ -n "${{ inputs.package-mapping-file }}" ]; then
+          CMD="$CMD --package-mapping-file ${{ inputs.package-mapping-file }}"
+        fi
+        
+        # Change to output directory
+        cd "${{ inputs.output-dir }}"
+        
+        # Run analysis
+        eval $CMD
+        
+        echo "✅ Analysis complete!"
+        
+        # Set outputs
+        REPORT_JSON="${{ inputs.output-dir }}/report.json"
+        REPORT_HTML="${{ inputs.output-dir }}/report.html"
+        
+        echo "report-json=$REPORT_JSON" >> $GITHUB_OUTPUT
+        echo "report-html=$REPORT_HTML" >> $GITHUB_OUTPUT
+        
+        # Extract sizes from JSON report
+        if [ -f "$REPORT_JSON" ]; then
+          PACKAGE_SIZE=$(grep -o '"totalPackageSize":[0-9]*' "$REPORT_JSON" | cut -d':' -f2)
+          INSTALL_SIZE=$(grep -o '"totalInstallSize":[0-9]*' "$REPORT_JSON" | cut -d':' -f2)
+          
+          echo "total-package-size=$PACKAGE_SIZE" >> $GITHUB_OUTPUT
+          echo "total-install-size=$INSTALL_SIZE" >> $GITHUB_OUTPUT
+          
+          # Display human-readable sizes
+          PACKAGE_MB=$(echo "scale=2; $PACKAGE_SIZE / 1024 / 1024" | bc)
+          INSTALL_MB=$(echo "scale=2; $INSTALL_SIZE / 1024 / 1024" | bc)
+          
+          echo "📦 IPA Size: ${PACKAGE_MB} MB"
+          echo "💾 Install Size: ${INSTALL_MB} MB"
+        fi
